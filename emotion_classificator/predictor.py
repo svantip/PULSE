@@ -82,50 +82,58 @@ class EmotionPredictor:
         Returns:
             Explanation dictionary with token importance
         """
-        # Simple gradient-based explanation
-        inputs_with_grad = {k: v.requires_grad_(True) for k, v in inputs.items() if k == 'input_ids'}
+        # Enable gradients temporarily for explanation
+        self.model.train()  # Set to train mode for gradients
         
-        # Get model output
-        outputs = self.model(**{**inputs, **inputs_with_grad})
-        predicted_class = torch.argmax(outputs.logits, dim=-1).item()
-        
-        # Compute gradients
-        outputs.logits[0, predicted_class].backward()
-        
-        # Get token importance
-        token_ids = inputs['input_ids'][0].tolist()
-        tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
-        
-        # Use gradient magnitude as importance score
-        if 'input_ids' in inputs_with_grad:
-            gradients = inputs_with_grad['input_ids'].grad
-            if gradients is not None:
-                importance = gradients.abs().squeeze().tolist()
-                if not isinstance(importance, list):
-                    importance = [importance]
+        try:
+            # Simple gradient-based explanation
+            inputs_with_grad = {k: v.clone().detach().requires_grad_(True) for k, v in inputs.items() if k == 'input_ids'}
+            
+            # Get model output
+            outputs = self.model(**{**inputs, **inputs_with_grad})
+            predicted_class = torch.argmax(outputs.logits, dim=-1).item()
+            
+            # Compute gradients
+            outputs.logits[0, predicted_class].backward()
+            
+            # Get token importance
+            token_ids = inputs['input_ids'][0].tolist()
+            tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
+            
+            # Use gradient magnitude as importance score
+            if 'input_ids' in inputs_with_grad:
+                gradients = inputs_with_grad['input_ids'].grad
+                if gradients is not None:
+                    importance = gradients.abs().squeeze().tolist()
+                    if not isinstance(importance, list):
+                        importance = [importance]
+                else:
+                    importance = [0.0] * len(tokens)
             else:
                 importance = [0.0] * len(tokens)
-        else:
-            importance = [0.0] * len(tokens)
-        
-        # Filter out special tokens and create word-level importance
-        token_importance = []
-        for token, score in zip(tokens, importance):
-            if token not in ['[CLS]', '[SEP]', '[PAD]']:
-                token_importance.append({
-                    "token": token,
-                    "importance": float(score)
-                })
-        
-        return {
-            "method": "gradient_based",
-            "token_importance": token_importance[:20],  # Top 20 tokens
-            "description": "Token importance based on gradient magnitudes"
-        }
+            
+            # Filter out special tokens and create word-level importance
+            token_importance = []
+            for token, score in zip(tokens, importance):
+                if token not in ['[CLS]', '[SEP]', '[PAD]']:
+                    token_importance.append({
+                        "token": token,
+                        "importance": float(score)
+                    })
+            
+            return {
+                "method": "gradient_based",
+                "token_importance": token_importance[:20],  # Top 20 tokens
+                "description": "Token importance based on gradient magnitudes"
+            }
+        finally:
+            # Clean up and set back to eval mode
+            self.model.zero_grad()
+            self.model.eval()
     
     def batch_predict(self, texts: List[str], explain: bool = False) -> List[Dict[str, Any]]:
         """
-        Predict emotions for multiple texts.
+        Predict emotions for multiple texts using efficient batch processing.
         
         Args:
             texts: List of input texts
@@ -134,4 +142,39 @@ class EmotionPredictor:
         Returns:
             List of prediction dictionaries
         """
-        return [self.predict(text, explain) for text in texts]
+        if not texts:
+            return []
+        
+        # For explanations, process individually since gradients are per-sample
+        if explain:
+            return [self.predict(text, explain) for text in texts]
+        
+        # Batch tokenization for efficiency
+        inputs = self.tokenizer(
+            texts,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+            padding=True
+        )
+        
+        # Get predictions for all texts
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
+            predicted_classes = torch.argmax(probabilities, dim=-1).tolist()
+            confidences = torch.max(probabilities, dim=-1).values.tolist()
+        
+        # Format results
+        results = []
+        for i, (pred_class, confidence) in enumerate(zip(predicted_classes, confidences)):
+            result = {
+                "emotion": self.emotion_labels[pred_class],
+                "confidence": float(confidence),
+                "all_scores": {
+                    label: float(prob) for label, prob in zip(self.emotion_labels, probabilities[i])
+                }
+            }
+            results.append(result)
+        
+        return results
