@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# PULSE specific
+# Model directories (models can be large)
+emotion_models/
+urgency_models/
+
+# MLflow tracking
+mlruns/
+mlartifacts/
