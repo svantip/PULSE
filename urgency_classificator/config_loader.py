@@ -49,12 +49,32 @@ def get_labels(config: Dict[str, Any] = None) -> List[str]:
     return config['LABELS']
 
 
-def get_model_name(config: Dict[str, Any] = None) -> str:
+def get_models(config: Dict[str, Any] = None) -> List[Dict[str, str]]:
     """
-    Get model name from config.
+    Get list of models to compare from config.
     
     Args:
         config: Configuration dictionary. If None, loads from default location.
+        
+    Returns:
+        List of model configurations with NAME and ALIAS
+    """
+    if config is None:
+        config = load_config()
+    
+    if 'MODELS' not in config:
+        raise ValueError("MODELS not found in configuration. Please define models in config.yaml")
+    
+    return config['MODELS']
+
+
+def get_model_name(config: Dict[str, Any] = None, alias: str = None) -> str:
+    """
+    Get model name from config by alias, or return first model if no alias specified.
+    
+    Args:
+        config: Configuration dictionary. If None, loads from default location.
+        alias: Model alias to retrieve. If None, returns first model.
         
     Returns:
         Model name
@@ -62,10 +82,16 @@ def get_model_name(config: Dict[str, Any] = None) -> str:
     if config is None:
         config = load_config()
     
-    if 'MODEL_NAME' not in config:
-        raise ValueError("MODEL_NAME not found in configuration. Please define model name in config.yaml")
+    models = get_models(config)
     
-    return config['MODEL_NAME']
+    if alias:
+        for model in models:
+            if model.get('ALIAS') == alias:
+                return model['NAME']
+        raise ValueError(f"Model with alias '{alias}' not found in configuration")
+    
+    # Return first model if no alias specified
+    return models[0]['NAME']
 
 
 def get_training_config(config: Dict[str, Any] = None) -> Dict[str, Any]:

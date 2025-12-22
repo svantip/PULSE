@@ -132,15 +132,22 @@ GET /health
 
 All classifier settings are managed through YAML configuration files. No values are hardcoded.
 
-### Emotion Classifier Configuration
+### Multi-Model Comparison Support
+
+Each classifier can compare multiple models to determine which performs best for your use case.
 
 Edit `emotion_classificator/config.yaml` to customize:
 
 ```yaml
-# Model configuration
-MODEL_NAME: "distilbert-base-uncased"  # HuggingFace model name
-NUM_LABELS: 6                          # Number of emotion labels
-LABELS:                                 # Define your emotion labels
+# Models to compare (define multiple models)
+MODELS:
+  - NAME: "distilbert-base-uncased"
+    ALIAS: "distilbert"
+  - NAME: "bert-base-uncased"
+    ALIAS: "bert"
+
+NUM_LABELS: 6
+LABELS:
   - "joy"
   - "sadness"
   - "anger"
@@ -167,6 +174,45 @@ VERSIONING:
 Edit `urgency_classificator/config.yaml` similarly for urgency classification.
 
 ## 🔧 Model Fine-tuning
+
+### Single Model Training
+
+```python
+from emotion_classificator import EmotionClassifier
+
+# Initialize with specific model
+classifier = EmotionClassifier(model_alias="bert")
+classifier.load_model()
+
+# Fine-tune on your dataset
+model_path = classifier.fine_tune(
+    train_dataset=your_train_dataset,
+    eval_dataset=your_eval_dataset
+)
+```
+
+### Model Comparison (Automated)
+
+Compare all models defined in config to find the best one:
+
+```python
+from emotion_classificator import EmotionClassifier
+
+# Initialize classifier
+classifier = EmotionClassifier()
+
+# Compare all models and get results
+results = classifier.compare_models(
+    train_dataset=your_train_dataset,
+    eval_dataset=your_eval_dataset
+)
+
+# Results include metrics for each model
+print(f"Best model: {results['best_model']}")
+for model_alias, metrics in results.items():
+    if model_alias != 'best_model':
+        print(f"{model_alias}: {metrics['metrics']}")
+```
 
 ### Emotion Classifier
 

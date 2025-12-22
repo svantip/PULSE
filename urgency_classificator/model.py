@@ -10,7 +10,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trai
 from sklearn.metrics import accuracy_score, f1_score
 import mlflow
 
-from .config_loader import load_config, get_labels, get_model_name, get_training_config, get_versioning_config
+from .config_loader import load_config, get_labels, get_model_name, get_models, get_training_config, get_versioning_config
 
 
 class UrgencyClassifier:
@@ -18,19 +18,28 @@ class UrgencyClassifier:
     Urgency classifier with fine-tuning capabilities and MLflow versioning.
     """
     
-    def __init__(self, model_name: str = None, model_version: Optional[str] = None, config_path: str = None):
+    def __init__(self, model_name: str = None, model_alias: str = None, model_version: Optional[str] = None, config_path: str = None):
         """
         Initialize the urgency classifier.
         
         Args:
             model_name: Base model name from HuggingFace (if None, loads from config)
+            model_alias: Model alias to use from config (e.g., 'bert', 'distilbert')
             model_version: Specific version to load (if None, uses latest)
             config_path: Path to configuration file (if None, uses default)
         """
         # Load configuration
         self.config = load_config(config_path)
         
-        self.model_name = model_name or get_model_name(self.config)
+        # Determine model name
+        if model_name:
+            self.model_name = model_name
+        elif model_alias:
+            self.model_name = get_model_name(self.config, alias=model_alias)
+        else:
+            # Default to first model in config
+            self.model_name = get_model_name(self.config)
+        
         self.model_version = model_version or "latest"
         self.model = None
         self.tokenizer = None
@@ -135,6 +144,78 @@ class UrgencyClassifier:
         finally:
             if mlflow_enabled and mlflow.active_run():
                 mlflow.end_run()
+    
+    def compare_models(self, train_dataset, eval_dataset, output_dir: str = None) -> Dict[str, Any]:
+        """
+        Compare all models defined in config by training and evaluating each.
+        
+        Args:
+            train_dataset: Training dataset
+            eval_dataset: Evaluation dataset
+            output_dir: Directory to save models (if None, uses default './urgency_models')
+            
+        Returns:
+            Dictionary with comparison results for each model
+        """
+        if output_dir is None:
+            output_dir = "./urgency_models"
+        
+        models_config = get_models(self.config)
+        results = {}
+        
+        print(f"\n{'='*60}")
+        print(f"Comparing {len(models_config)} models for urgency classification")
+        print(f"{'='*60}\n")
+        
+        for model_config in models_config:
+            model_name = model_config['NAME']
+            model_alias = model_config['ALIAS']
+            
+            print(f"\nTraining model: {model_alias} ({model_name})")
+            print(f"{'-'*60}")
+            
+            # Initialize new model
+            original_model_name = self.model_name
+            self.model_name = model_name
+            self.load_model()
+            
+            # Fine-tune
+            model_output_dir = os.path.join(output_dir, model_alias)
+            version_path = self.fine_tune(train_dataset, eval_dataset, model_output_dir)
+            
+            # Store results
+            # Read metadata to get metrics
+            metadata_path = os.path.join(version_path, "metadata.json")
+            if os.path.exists(metadata_path):
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                    results[model_alias] = {
+                        'model_name': model_name,
+                        'version_path': version_path,
+                        'metrics': metadata.get('metrics', {})
+                    }
+            
+            # Restore original model name
+            self.model_name = original_model_name
+        
+        # Determine best model
+        best_model = max(results.items(), key=lambda x: x[1]['metrics'].get('eval_accuracy', 0))
+        
+        print(f"\n{'='*60}")
+        print("Model Comparison Results:")
+        print(f"{'='*60}")
+        for alias, result in results.items():
+            metrics = result['metrics']
+            print(f"\n{alias} ({result['model_name']}):")
+            print(f"  Accuracy: {metrics.get('eval_accuracy', 0):.4f}")
+            print(f"  F1 Score: {metrics.get('eval_f1', 0):.4f}")
+            if alias == best_model[0]:
+                print(f"  ⭐ BEST MODEL")
+        
+        print(f"\n{'='*60}\n")
+        
+        results['best_model'] = best_model[0]
+        return results
     
     def _compute_metrics(self, eval_pred):
         """Compute metrics for evaluation."""

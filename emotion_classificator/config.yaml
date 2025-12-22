@@ -1,5 +1,12 @@
 # Configuration for emotion classifier
-MODEL_NAME: "distilbert-base-uncased"
+
+# Models to compare (list of model configurations)
+MODELS:
+  - NAME: "distilbert-base-uncased"
+    ALIAS: "distilbert"
+  - NAME: "bert-base-uncased"
+    ALIAS: "bert"
+
 NUM_LABELS: 6
 LABELS:
   - "joy"
