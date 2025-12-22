@@ -7,21 +7,29 @@ import numpy as np
 from typing import Dict, List, Any, Optional
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+from .config_loader import load_config, get_labels, get_model_name
+
 
 class EmotionPredictor:
     """
     Emotion predictor with explainability support.
     """
     
-    def __init__(self, model_path: Optional[str] = None, model_name: str = "distilbert-base-uncased"):
+    def __init__(self, model_path: Optional[str] = None, model_name: str = None, config_path: str = None):
         """
         Initialize the predictor.
         
         Args:
             model_path: Path to fine-tuned model
-            model_name: Base model name if no fine-tuned model available
+            model_name: Base model name if no fine-tuned model available (if None, loads from config)
+            config_path: Path to configuration file (if None, uses default)
         """
-        self.emotion_labels = ["joy", "sadness", "anger", "fear", "surprise", "neutral"]
+        # Load configuration
+        self.config = load_config(config_path)
+        self.emotion_labels = get_labels(self.config)
+        
+        if model_name is None:
+            model_name = get_model_name(self.config)
         
         if model_path:
             self.model = AutoModelForSequenceClassification.from_pretrained(model_path)

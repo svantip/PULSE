@@ -128,6 +128,44 @@ Content-Type: application/json
 GET /health
 ```
 
+## ⚙️ Configuration
+
+All classifier settings are managed through YAML configuration files. No values are hardcoded.
+
+### Emotion Classifier Configuration
+
+Edit `emotion_classificator/config.yaml` to customize:
+
+```yaml
+# Model configuration
+MODEL_NAME: "distilbert-base-uncased"  # HuggingFace model name
+NUM_LABELS: 6                          # Number of emotion labels
+LABELS:                                 # Define your emotion labels
+  - "joy"
+  - "sadness"
+  - "anger"
+  - "fear"
+  - "surprise"
+  - "neutral"
+
+# Training parameters
+TRAINING:
+  LEARNING_RATE: 2e-5
+  BATCH_SIZE: 16
+  NUM_EPOCHS: 3
+  WEIGHT_DECAY: 0.01
+
+# Model versioning with MLflow
+VERSIONING:
+  ENABLED: true
+  MLFLOW_TRACKING_URI: "./mlruns"
+  EXPERIMENT_NAME: "emotion_classification"
+```
+
+### Urgency Classifier Configuration
+
+Edit `urgency_classificator/config.yaml` similarly for urgency classification.
+
 ## 🔧 Model Fine-tuning
 
 ### Emotion Classifier
@@ -135,15 +173,14 @@ GET /health
 ```python
 from emotion_classificator import EmotionClassifier
 
-# Initialize classifier
-classifier = EmotionClassifier(model_name="distilbert-base-uncased")
+# Initialize classifier (loads configuration from config.yaml)
+classifier = EmotionClassifier()
 classifier.load_model()
 
 # Fine-tune on your dataset
 model_path = classifier.fine_tune(
     train_dataset=your_train_dataset,
-    eval_dataset=your_eval_dataset,
-    output_dir="./emotion_models"
+    eval_dataset=your_eval_dataset
 )
 ```
 
@@ -152,15 +189,14 @@ model_path = classifier.fine_tune(
 ```python
 from urgency_classificator import UrgencyClassifier
 
-# Initialize classifier
-classifier = UrgencyClassifier(model_name="distilbert-base-uncased")
+# Initialize classifier (loads configuration from config.yaml)
+classifier = UrgencyClassifier()
 classifier.load_model()
 
 # Fine-tune on your dataset
 model_path = classifier.fine_tune(
     train_dataset=your_train_dataset,
-    eval_dataset=your_eval_dataset,
-    output_dir="./urgency_models"
+    eval_dataset=your_eval_dataset
 )
 ```
 
