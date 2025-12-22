@@ -214,3 +214,7 @@ urgency_models/
 # MLflow tracking
 mlruns/
 mlartifacts/
+
+# Test scripts (for local validation only)
+test_structure.py
+check_syntax.py
