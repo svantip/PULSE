@@ -1,11 +1,10 @@
 """
 Emotion Prediction Module
-Handles predictions with explainability using SHAP.
+Handles predictions with explainability using gradient-based methods.
 """
 import torch
 import numpy as np
 from typing import Dict, List, Any, Optional
-import shap
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
@@ -73,7 +72,7 @@ class EmotionPredictor:
     
     def _get_explanation(self, text: str, inputs: Dict) -> Dict[str, Any]:
         """
-        Generate explanation for prediction using SHAP-like approach.
+        Generate explanation for prediction using gradient-based approach.
         
         Args:
             text: Original text

@@ -215,7 +215,7 @@ python controller.py
 - **Transformers**: HuggingFace transformers for NLP models
 - **PyTorch**: Deep learning framework
 - **MLflow**: Model versioning and experiment tracking
-- **SHAP**: Model explainability (gradient-based approach)
+- **Gradient-based explainability**: Token importance using gradient magnitudes
 - **scikit-learn**: Metrics and utilities
 
 ## 📝 License
