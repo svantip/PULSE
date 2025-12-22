@@ -77,8 +77,7 @@ class EmotionClassifier:
             experiment_name = versioning_config.get('EXPERIMENT_NAME', 'emotion_classification')
             mlflow.set_tracking_uri(mlflow_uri)
             mlflow.set_experiment(experiment_name)
-        
-        run_context = mlflow.start_run(run_name=f"emotion_finetune_{datetime.now().strftime('%Y%m%d_%H%M%S')}") if mlflow_enabled else None
+            mlflow.start_run(run_name=f"emotion_finetune_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         
         try:
             training_args = TrainingArguments(
@@ -134,7 +133,7 @@ class EmotionClassifier:
             
             return version_path
         finally:
-            if run_context:
+            if mlflow_enabled and mlflow.active_run():
                 mlflow.end_run()
     
     def _compute_metrics(self, eval_pred):
