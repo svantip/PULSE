@@ -198,6 +198,10 @@ class EmotionClassifier:
             # Restore original model name
             self.model_name = original_model_name
         
+        # Check if we have results
+        if not results:
+            raise ValueError("No models were successfully trained. Check your configuration and datasets.")
+        
         # Determine best model
         best_model = max(results.items(), key=lambda x: x[1]['metrics'].get('eval_accuracy', 0))
         
