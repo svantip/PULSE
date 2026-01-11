@@ -1,0 +1,230 @@
+======================================================================
+URGENCY CLASSIFICATION MODEL TRAINING REPORT
+======================================================================
+
+Generated: 2026-01-11 05:23:54
+Dataset: /Users/svantipuric/FIDIT_projects/PULSE/urgency_classificator/data/clean.csv
+
+----------------------------------------------------------------------
+TRAINING OVERVIEW
+----------------------------------------------------------------------
+Two transformer models were trained and compared:
+1. BERT (bert-base-multilingual-cased)
+   - 12 layers, 12 attention heads, 768 hidden size
+   - 110M parameters
+   - Full BERT architecture
+
+2. DistilBERT (distilbert-base-multilingual-cased)
+   - 6 layers, 12 attention heads, 768 hidden size
+   - 66M parameters (40% smaller)
+   - Distilled from BERT (faster, retains 97% performance)
+
+Both models used gradient-based optimization:
+- Optimizer: AdamW with learning rate 2e-5
+- Training: Backpropagation through transformer layers
+- Loss: Weighted Cross-Entropy (class-balanced)
+
+----------------------------------------------------------------------
+PERFORMANCE COMPARISON
+----------------------------------------------------------------------
+
+Overall Metrics:
+Metric          BERT         DistilBERT   Difference  
+----------------------------------------------------------------------
+Accuracy        0.5403       0.5699       -0.0296
+Precision       0.6017       0.6131       -0.0114
+Recall          0.5403       0.5699       -0.0296
+F1-Score        0.5377       0.5551       -0.0174
+
+
+Per-Class Performance (F1-Score):
+Class           BERT         DistilBERT   Difference  
+----------------------------------------------------------------------
+Low             0.5343       0.5686       -0.0343
+Medium          0.4560       0.4339       +0.0222
+High            0.6206       0.6668       -0.0461
+
+
+----------------------------------------------------------------------
+MODEL ANALYSIS & COMPARISON
+----------------------------------------------------------------------
+
+🏆 WINNER: DistilBERT Model
+Performance advantage: 3.24%
+
+Why DistilBERT Matches or Exceeds BERT:
+
+1. EFFICIENT ARCHITECTURE:
+   - Knowledge distillation retained most of BERT's capabilities
+   - 40% smaller, 60% faster, while maintaining 97% performance
+   - Better regularization may prevent overfitting
+
+2. DATASET SIZE:
+   - With 20K samples, smaller model may generalize better
+   - BERT's extra capacity not fully utilized
+   - Less prone to overfitting on limited data
+
+3. TRAINING EFFIergence due to fewer parameters
+   - Better gradient flow through 6 layers
+   - More stable training dynamics
+
+Benefits:
+   - 2x faster inference (important for production)
+   - 2x less memory (can run on smaller GPUs)
+   - Equal or better performance
+   - ✅ Recommended for deployment
+
+----------------------------------------------------------------------
+MODEL EXPLAINABILITY (Attention-based)
+----------------------------------------------------------------------
+
+Both models use attention weights to explain predictions.
+Attention shows which words the model focused on when making decisions.
+
+BERT Explanations:
+----------------------------------------------------------------------
+
+Example 1:
+Text: Kontakten Sie mich, um mehr über digitale Strategien für Markenwachstum zu erfahren. Könnten Sie mehr Informationen geben und eventuelle relevante Fallstudien teilen? Ich bin daran interessiert, mehr ...
+True: medium | Predicted: low | Confidence: 0.516 | Correct: False
+Important tokens (attention-weighted):
+  - 'Informationen': 0.0952
+  - '##uelle': 0.0638
+  - 'event': 0.0614
+  - 'über': 0.0440
+  - 'geben': 0.0405
+
+Example 2:
+Text: Betreff: Benachrichtigung über zeitweilige Latenzprobleme\nSehr geehrte Support-Mitarbeiter,\n\nich schreibe Ihnen, um ein sporadisches Problem zu melden, das bei der Einreichung von Kalibrierungsberi...
+True: low | Predicted: low | Confidence: 0.894 | Correct: True
+Important tokens (attention-weighted):
+  - '##sches': 0.0263
+  - 'Das': 0.0225
+  - 'die': 0.0219
+  - 'das': 0.0216
+  - 'ein': 0.0215
+
+Example 3:
+Text: Betreff: Anfrage bezüglich Synchronisationsproblemen in der NovaPM DevOps Integration\nSehr geehrtes Support-Team,\n\nich schreibe Ihnen, um Unterstützung bezüglich eines Problems anzufordern, das im ...
+True: low | Predicted: low | Confidence: 0.988 | Correct: True
+Important tokens (attention-weighted):
+  - 'zeitweise': 0.0734
+  - '##hler': 0.0243
+  - 'begann': 0.0200
+  - 'führt': 0.0171
+  - 'vor': 0.0159
+
+Example 4:
+Text: Betreff: Problem with Project Synchronization\nProject schedules are failing to sync between teams. There might be integration problems with OneNote and Windows. I have already restarted Repeater and ...
+True: medium | Predicted: medium | Confidence: 0.376 | Correct: True
+Important tokens (attention-weighted):
+  - 'failing': 0.0841
+  - 'are': 0.0807
+  - 'problems': 0.0698
+  - '##c': 0.0659
+  - 'syn': 0.0431
+
+Example 5:
+Text: Betreff: Assistance with Azure Ruby on Rails Integration\nSeeking guidance on integrating the Azure Ruby on Rails SaaS project
+True: low | Predicted: low | Confidence: 0.398 | Correct: True
+Important tokens (attention-weighted):
+  - 'guidance': 0.2752
+  - 'on': 0.1790
+  - 'integra': 0.0826
+  - '##eek': 0.0783
+  - '##ting': 0.0506
+
+
+DistilBERT Explanations:
+----------------------------------------------------------------------
+
+Example 1:
+Text: Kontakten Sie mich, um mehr über digitale Strategien für Markenwachstum zu erfahren. Könnten Sie mehr Informationen geben und eventuelle relevante Fallstudien teilen? Ich bin daran interessiert, mehr ...
+True: medium | Predicted: low | Confidence: 0.478 | Correct: False
+Important tokens (attention-weighted):
+  - '##uelle': 0.0543
+  - 'Erfolge': 0.0371
+  - 'relevante': 0.0288
+  - 'event': 0.0271
+  - 'Informationen': 0.0269
+
+Example 2:
+Text: Betreff: Benachrichtigung über zeitweilige Latenzprobleme\nSehr geehrte Support-Mitarbeiter,\n\nich schreibe Ihnen, um ein sporadisches Problem zu melden, das bei der Einreichung von Kalibrierungsberi...
+True: low | Predicted: low | Confidence: 0.993 | Correct: True
+Important tokens (attention-weighted):
+  - 'ein': 0.1164
+  - 'nich': 0.0865
+  - '\': 0.0509
+  - 'n': 0.0497
+  - 'um': 0.0496
+
+Example 3:
+Text: Betreff: Anfrage bezüglich Synchronisationsproblemen in der NovaPM DevOps Integration\nSehr geehrtes Support-Team,\n\nich schreibe Ihnen, um Unterstützung bezüglich eines Problems anzufordern, das im ...
+True: low | Predicted: low | Confidence: 0.998 | Correct: True
+Important tokens (attention-weighted):
+  - 's': 0.0690
+  - 'nich': 0.0604
+  - '##ch': 0.0509
+  - 'n': 0.0497
+  - '##rei': 0.0454
+
+Example 4:
+Text: Betreff: Problem with Project Synchronization\nProject schedules are failing to sync between teams. There might be integration problems with OneNote and Windows. I have already restarted Repeater and ...
+True: medium | Predicted: medium | Confidence: 0.370 | Correct: True
+Important tokens (attention-weighted):
+  - 'schedule': 0.1371
+  - 'problems': 0.0515
+  - 'teams': 0.0480
+  - '##s': 0.0318
+  - 'failing': 0.0291
+
+Example 5:
+Text: Betreff: Assistance with Azure Ruby on Rails Integration\nSeeking guidance on integrating the Azure Ruby on Rails SaaS project
+True: low | Predicted: low | Confidence: 0.390 | Correct: True
+Important tokens (attention-weighted):
+  - 'guidance': 0.1882
+  - 'project': 0.0635
+  - '##ing': 0.0410
+  - '##istance': 0.0359
+  - 'on': 0.0297
+
+
+----------------------------------------------------------------------
+RECOMMENDATIONS
+----------------------------------------------------------------------
+
+1. DEPLOYMENT: Use DistilBERT model for production
+
+2. PERFORMANCE vs EFFICIENCY TRADE-OFF:
+   - DistilBERT is best choice: faster AND more accurate
+   - No trade-off needed - clear winner
+
+3. IMPROVEMENTS:
+   - Try XLM-RoBERTa for even better multilingual performance
+   - Implement ensemble of both models for robustness
+   - Add data augmentation for minority classes
+   - Use active learning to collect labels for uncertain cases
+
+4. MONITORING:
+   - Track model performance on new data
+   - Monitor for data drift (language distribution changes)
+   - Retrain quarterly with new examples
+   - Log attention patterns for debugging
+
+----------------------------------------------------------------------
+MODEL VERSIONING (MLflow)
+----------------------------------------------------------------------
+
+Experiment: urgency_classification
+Tracking URI: ./mlruns
+
+View experiments: mlflow ui
+Compare runs in MLflow UI to see:
+  - Training curves and loss
+  - Hyperparameter comparison
+  - Metric evolution over time
+  - Model artifacts and checkpoints
+
+======================================================================
+END OF REPORT
+======================================================================

@@ -1,0 +1,263 @@
+[
+  {
+    "text": "Betreff: Mehr \u00fcber digitale Strategien f\u00fcr die Wachstum von technologie-fokussierten Firmen\\nHallo Kundenservice, ich w\u00fcrde gerne mehr \u00fcber erfolgreiche Kampagnen von Marengrowth erfahren, die die Eff...",
+    "true_label": "medium",
+    "predicted_label": "low",
+    "confidence": 0.3768095374107361,
+    "correct": false,
+    "important_tokens": [
+      [
+        "Bet",
+        0.1049976721405983
+      ],
+      [
+        "##f",
+        0.052895575761795044
+      ],
+      [
+        "##ref",
+        0.03723950311541557
+      ],
+      [
+        "Mare",
+        0.0343753807246685
+      ],
+      [
+        "Mehr",
+        0.03189714625477791
+      ]
+    ]
+  },
+  {
+    "text": "Die aktuellen digitalen Marketingkampagnen leisten unterdurchschnittlich, da sich die Algorithmen ge\u00e4ndert haben. Eine Anpassung der Zieleinstellungen und Steigerung des Budgets haben sich als hilfrei...",
+    "true_label": "high",
+    "predicted_label": "medium",
+    "confidence": 0.35605597496032715,
+    "correct": false,
+    "important_tokens": [
+      [
+        "Budget",
+        0.19001932442188263
+      ],
+      [
+        "##agne",
+        0.11149824410676956
+      ],
+      [
+        "Marketing",
+        0.08756401389837265
+      ],
+      [
+        "digitale",
+        0.07230433821678162
+      ],
+      [
+        "##kamp",
+        0.05557863041758537
+      ]
+    ]
+  },
+  {
+    "text": "Project information vanished unexpectedly. There might be a problem with the database connection. Tried restarting the database and reviewing logs, also confirmed the backups. Awaiting your guidance t...",
+    "true_label": "high",
+    "predicted_label": "high",
+    "confidence": 0.7199311852455139,
+    "correct": true,
+    "important_tokens": [
+      [
+        "connection",
+        0.1187608614563942
+      ],
+      [
+        "Project",
+        0.11667130142450333
+      ],
+      [
+        "backup",
+        0.08172260969877243
+      ],
+      [
+        "database",
+        0.051873642951250076
+      ],
+      [
+        "log",
+        0.041085731238126755
+      ]
+    ]
+  },
+  {
+    "text": "There was an unauthorized access incident that led to the compromise of sensitive medical data within the hospital system. This may have originated from a phishing attack targeting the staff. We have ...",
+    "true_label": "high",
+    "predicted_label": "high",
+    "confidence": 0.6138241291046143,
+    "correct": true,
+    "important_tokens": [
+      [
+        "hospital",
+        0.12033041566610336
+      ],
+      [
+        "sensitive",
+        0.09419789165258408
+      ],
+      [
+        "incident",
+        0.06885498017072678
+      ],
+      [
+        "access",
+        0.04745110496878624
+      ],
+      [
+        "attack",
+        0.046870987862348557
+      ]
+    ]
+  },
+  {
+    "text": "A data loss has been detected in the hospital network. The issue might be due to weak passwords or outdated software. So far, we have restarted the modem and checked the camera settings, but the probl...",
+    "true_label": "low",
+    "predicted_label": "high",
+    "confidence": 0.47503969073295593,
+    "correct": false,
+    "important_tokens": [
+      [
+        "hospital",
+        0.23865489661693573
+      ],
+      [
+        "network",
+        0.14845053851604462
+      ],
+      [
+        "data",
+        0.06817293912172318
+      ],
+      [
+        "A",
+        0.05158946290612221
+      ],
+      [
+        "the",
+        0.043468210846185684
+      ]
+    ]
+  },
+  {
+    "text": "Sehr geehrte Kundenservice, ich m\u00f6chte mich mit der Zusammenhang Datenspektralanalyse und deren Optimierung bez\u00fcglich Investitionen befassen. K\u00f6nnten Sie mir bitte Details zu den analytischen Werkzeug...",
+    "true_label": "low",
+    "predicted_label": "medium",
+    "confidence": 0.3789593279361725,
+    "correct": false,
+    "important_tokens": [
+      [
+        "Se",
+        0.040385302156209946
+      ],
+      [
+        "K",
+        0.03770436346530914
+      ],
+      [
+        "Zusammenhang",
+        0.03454568237066269
+      ],
+      [
+        "Viele",
+        0.027743667364120483
+      ],
+      [
+        "]",
+        0.027446985244750977
+      ]
+    ]
+  },
+  {
+    "text": "Sehr geehrte Kundenservice, ich m\u00f6chte die Integrationsunterst\u00fctzung f\u00fcr unsere SaaS-Plattform und betroffene Produkte beantragen. Die Integration soll die Funktionalit\u00e4t im Projektmanagement-Bereich ...",
+    "true_label": "medium",
+    "predicted_label": "medium",
+    "confidence": 0.3868686556816101,
+    "correct": true,
+    "important_tokens": [
+      [
+        "Integration",
+        0.08504987508058548
+      ],
+      [
+        "Integration",
+        0.08213967829942703
+      ],
+      [
+        "Kunden",
+        0.043817486613988876
+      ],
+      [
+        "Platt",
+        0.038182277232408524
+      ],
+      [
+        ".",
+        0.02547514997422695
+      ]
+    ]
+  },
+  {
+    "text": "Currently facing performance challenges with SQL Server 2019, leading to delays in marketing analytics. This could be due to high data traffic or configuration errors. We have already tried database o...",
+    "true_label": "medium",
+    "predicted_label": "high",
+    "confidence": 0.5601748824119568,
+    "correct": false,
+    "important_tokens": [
+      [
+        "SQL",
+        0.15260864794254303
+      ],
+      [
+        "Server",
+        0.1014304980635643
+      ],
+      [
+        "performance",
+        0.08283599466085434
+      ],
+      [
+        "2019",
+        0.07912325114011765
+      ],
+      [
+        "delay",
+        0.05260160192847252
+      ]
+    ]
+  },
+  {
+    "text": "Die Benachrichtigung \u00fcber einen unbefugten Zugriff wurde auf dem Server ausgel\u00f6st, der medizinische Daten verwaltet. M\u00f6gliche Ursache: schwache Firewallregeln und veraltete Software. Versuche, das Sys...",
+    "true_label": "low",
+    "predicted_label": "high",
+    "confidence": 0.4199691414833069,
+    "correct": false,
+    "important_tokens": [
+      [
+        "Server",
+        0.16787666082382202
+      ],
+      [
+        "##riff",
+        0.05004845932126045
+      ],
+      [
+        "Daten",
+        0.03371620550751686
+      ],
+      [
+        "med",
+        0.03307501599192619
+      ],
+      [
+        "einen",
+        0.033006779849529266
+      ]
+    ]
+  }
+]
