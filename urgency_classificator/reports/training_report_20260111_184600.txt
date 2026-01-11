@@ -1,0 +1,201 @@
+======================================================================
+URGENCY CLASSIFICATION MODEL TRAINING REPORT
+======================================================================
+
+Generated: 2026-01-11 21:15:33
+Dataset: /Users/svantipuric/FIDIT_projects/PULSE/urgency_classificator/data/clean.csv
+
+----------------------------------------------------------------------
+TRAINING OVERVIEW
+----------------------------------------------------------------------
+Two transformer models were trained and compared:
+
+1. XLM-RoBERTa (xlm-roberta-base)
+   - 12 layers, 12 attention heads, 768 hidden size
+   - 125M parameters
+   - Optimized for multilingual tasks
+
+2. BERT Multilingual (bert-base-multilingual-cased)
+   - 12 layers, 12 attention heads, 768 hidden size
+   - 110M parameters
+   - Multilingual BERT baseline
+
+Both models used gradient-based optimization:
+- Optimizer: AdamW
+- Training: Backpropagation through transformer layers
+- Loss: Weighted Cross-Entropy (class-balanced)
+
+----------------------------------------------------------------------
+PERFORMANCE COMPARISON
+----------------------------------------------------------------------
+
+Overall Metrics:
+Metric          xlm-roberta     bert-multilingual Difference  
+----------------------------------------------------------------------
+Accuracy        0.6042          0.5835          +0.0207
+Precision       0.6462          0.6575          -0.0113
+Recall          0.6042          0.5835          +0.0207
+F1-Score        0.5998          0.5746          +0.0252
+
+
+Per-Class Performance (F1-Score):
+Class           xlm-roberta     bert-multilingual Difference  
+----------------------------------------------------------------------
+Low             0.5265          0.5015          +0.0250
+Medium          0.6087          0.6101          -0.0013
+High            0.6366          0.5850          +0.0516
+
+
+----------------------------------------------------------------------
+MODEL ANALYSIS
+----------------------------------------------------------------------
+
+🏆 BEST MODEL: xlm-roberta
+Performance advantage: 4.38%
+
+Why XLM-RoBERTa Performs Well:
+- Optimized training objectives for cross-lingual transfer
+- Better tokenization for multilingual text
+- Improved handling of class imbalance
+
+----------------------------------------------------------------------
+MODEL EXPLAINABILITY (Attention-based)
+----------------------------------------------------------------------
+
+xlm-roberta Explanations:
+----------------------------------------------------------------------
+
+Example 1:
+Text: Kontakten Sie mich, um mehr über digitale Strategien für Markenwachstum zu erfahren. Könnten Sie mehr Informationen geben und eventuelle relevante Fallstudien teilen? Ich bin daran interessiert, mehr ...
+True: medium | Predicted: medium | Confidence: 0.434 | Correct: True
+Important tokens:
+  - '<s>': 0.3359
+  - '▁Marken': 0.0193
+  - '▁Marken': 0.0172
+  - '▁digitale': 0.0158
+  - '▁Strategi': 0.0148
+
+Example 2:
+Text: Betreff: Benachrichtigung über zeitweilige Latenzprobleme\nSehr geehrte Support-Mitarbeiter,\n\nich schreibe Ihnen, um ein sporadisches Problem zu melden, das bei der Einreichung von Kalibrierungsberi...
+True: low | Predicted: low | Confidence: 0.815 | Correct: True
+Important tokens:
+  - '\': 0.0378
+  - '\': 0.0285
+  - '\': 0.0276
+  - '\': 0.0097
+  - '▁einen': 0.0091
+
+Example 3:
+Text: Betreff: Anfrage bezüglich Synchronisationsproblemen in der NovaPM DevOps Integration\nSehr geehrtes Support-Team,\n\nich schreibe Ihnen, um Unterstützung bezüglich eines Problems anzufordern, das im ...
+True: low | Predicted: low | Confidence: 0.983 | Correct: True
+Important tokens:
+  - '\': 0.0426
+  - '\': 0.0379
+  - '\': 0.0240
+  - '▁Version': 0.0077
+  - '▁haben': 0.0077
+
+Example 4:
+Text: Betreff: Problem with Project Synchronization\nProject schedules are failing to sync between teams. There might be integration problems with OneNote and Windows. I have already restarted Repeater and ...
+True: medium | Predicted: medium | Confidence: 0.463 | Correct: True
+Important tokens:
+  - '<s>': 0.3294
+  - '▁fail': 0.0188
+  - '▁are': 0.0184
+  - 'ing': 0.0183
+  - '▁Windows': 0.0169
+
+Example 5:
+Text: Betreff: Assistance with Azure Ruby on Rails Integration\nSeeking guidance on integrating the Azure Ruby on Rails SaaS project
+True: low | Predicted: medium | Confidence: 0.442 | Correct: False
+Important tokens:
+  - '<s>': 0.3886
+  - '▁Assist': 0.0359
+  - '▁Rail': 0.0292
+  - '▁Rail': 0.0271
+  - '▁Ruby': 0.0266
+
+
+bert-multilingual Explanations:
+----------------------------------------------------------------------
+
+Example 1:
+Text: Kontakten Sie mich, um mehr über digitale Strategien für Markenwachstum zu erfahren. Könnten Sie mehr Informationen geben und eventuelle relevante Fallstudien teilen? Ich bin daran interessiert, mehr ...
+True: medium | Predicted: medium | Confidence: 0.454 | Correct: True
+Important tokens:
+  - 'digitale': 0.0442
+  - 'Marke': 0.0405
+  - 'Marke': 0.0379
+  - '##rate': 0.0238
+  - '##rate': 0.0173
+
+Example 2:
+Text: Betreff: Benachrichtigung über zeitweilige Latenzprobleme\nSehr geehrte Support-Mitarbeiter,\n\nich schreibe Ihnen, um ein sporadisches Problem zu melden, das bei der Einreichung von Kalibrierungsberi...
+True: low | Predicted: low | Confidence: 0.859 | Correct: True
+Important tokens:
+  - '\': 0.0534
+  - 'Late': 0.0390
+  - '##pro': 0.0337
+  - '\': 0.0273
+  - '##ög': 0.0223
+
+Example 3:
+Text: Betreff: Anfrage bezüglich Synchronisationsproblemen in der NovaPM DevOps Integration\nSehr geehrtes Support-Team,\n\nich schreibe Ihnen, um Unterstützung bezüglich eines Problems anzufordern, das im ...
+True: low | Predicted: low | Confidence: 0.676 | Correct: True
+Important tokens:
+  - '.': 0.0944
+  - 'Syn': 0.0779
+  - '##ch': 0.0707
+  - '\': 0.0652
+  - 'Syn': 0.0443
+
+Example 4:
+Text: Betreff: Problem with Project Synchronization\nProject schedules are failing to sync between teams. There might be integration problems with OneNote and Windows. I have already restarted Repeater and ...
+True: medium | Predicted: medium | Confidence: 0.476 | Correct: True
+Important tokens:
+  - 'Syn': 0.0456
+  - 'syn': 0.0329
+  - 'schedule': 0.0284
+  - 'Windows': 0.0221
+  - 'teams': 0.0205
+
+Example 5:
+Text: Betreff: Assistance with Azure Ruby on Rails Integration\nSeeking guidance on integrating the Azure Ruby on Rails SaaS project
+True: low | Predicted: medium | Confidence: 0.448 | Correct: False
+Important tokens:
+  - 'Ruby': 0.0610
+  - 'Azur': 0.0498
+  - 'Azur': 0.0489
+  - 'Ruby': 0.0485
+  - 'Integration': 0.0301
+
+
+----------------------------------------------------------------------
+RECOMMENDATIONS
+----------------------------------------------------------------------
+
+1. DEPLOYMENT: Use xlm-roberta model for production
+
+2. MONITORING:
+   - Track model performance on new data
+   - Monitor for data drift
+   - Retrain quarterly with new examples
+
+3. IMPROVEMENTS:
+   - Collect more training data for minority classes
+   - Implement active learning for uncertain cases
+   - Consider ensemble methods
+
+----------------------------------------------------------------------
+MODEL VERSIONING (MLflow)
+----------------------------------------------------------------------
+
+Experiment: urgency_classification
+Tracking URI: ./mlruns
+
+View experiments: mlflow ui
+Compare runs in MLflow UI
+
+======================================================================
+END OF REPORT
+======================================================================
