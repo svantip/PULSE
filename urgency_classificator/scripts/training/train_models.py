@@ -5,12 +5,21 @@ Streamlined training with configuration-based setup.
 NOTE: Run from project root using: python train.py
       Or with PYTHONPATH: PYTHONPATH=. python scripts/training/train_models.py
 """
-from utils.reporting import generate_training_report
-from utils.visualization import create_all_visualizations
-from utils.config_loader import load_config, get_labels, get_models
-import warnings
-import tempfile
-from torch.utils.data import Dataset
+import sys
+import mlflow
+import mlflow.pytorch
+import numpy as np
+import pandas as pd
+import torch
+from datetime import datetime
+from typing import Dict, List, Tuple, Any
+from sklearn.utils.class_weight import compute_class_weight
+from sklearn.metrics import (
+    accuracy_score,
+    precision_recall_fscore_support,
+    confusion_matrix
+)
+from sklearn.model_selection import train_test_split
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -18,22 +27,16 @@ from transformers import (
     Trainer,
     EarlyStoppingCallback
 )
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import (
-    accuracy_score,
-    precision_recall_fscore_support,
-    confusion_matrix
-)
-from sklearn.utils.class_weight import compute_class_weight
-from typing import Dict, List, Tuple, Any
-from datetime import datetime
-import torch
-import pandas as pd
-import numpy as np
-import mlflow.pytorch
-import mlflow
+from torch.utils.data import Dataset
+import tempfile
+import warnings
+from utils.config_loader import load_config, get_labels, get_models
+from utils.visualization import create_all_visualizations
+from utils.reporting import generate_training_report
 import os
-import sys
+# Suppress tokenizer parallelism warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 # Add project root to path (needed when running script directly)
 project_root = os.path.abspath(

@@ -1,0 +1,201 @@
+======================================================================
+URGENCY CLASSIFICATION MODEL TRAINING REPORT
+======================================================================
+
+Generated: 2026-01-13 13:44:53
+Dataset: /Users/svantipuric/FIDIT_projects/PULSE/urgency_classificator/data/clean.csv
+
+----------------------------------------------------------------------
+TRAINING OVERVIEW
+----------------------------------------------------------------------
+Two transformer models were trained and compared:
+
+1. XLM-RoBERTa (xlm-roberta-base)
+   - 12 layers, 12 attention heads, 768 hidden size
+   - 125M parameters
+   - Optimized for multilingual tasks
+
+2. BERT Multilingual (bert-base-multilingual-cased)
+   - 12 layers, 12 attention heads, 768 hidden size
+   - 110M parameters
+   - Multilingual BERT baseline
+
+Both models used gradient-based optimization:
+- Optimizer: AdamW
+- Training: Backpropagation through transformer layers
+- Loss: Weighted Cross-Entropy (class-balanced)
+
+----------------------------------------------------------------------
+PERFORMANCE COMPARISON
+----------------------------------------------------------------------
+
+Overall Metrics:
+Metric          roberta         bert            Difference  
+----------------------------------------------------------------------
+Accuracy        0.8258          0.8196          +0.0062
+Precision       0.8703          0.8343          +0.0360
+Recall          0.8258          0.8196          +0.0062
+F1-Score        0.8390          0.7867          +0.0523
+
+
+Per-Class Performance (F1-Score):
+Class           roberta         bert            Difference  
+----------------------------------------------------------------------
+Low             0.9626          0.9905          -0.0279
+Medium          0.4670          0.5594          -0.0924
+High            0.5751          0.0967          +0.4784
+
+
+----------------------------------------------------------------------
+MODEL ANALYSIS
+----------------------------------------------------------------------
+
+🏆 BEST MODEL: roberta
+Performance advantage: 6.65%
+
+Why XLM-RoBERTa Performs Well:
+- Optimized training objectives for cross-lingual transfer
+- Better tokenization for multilingual text
+- Improved handling of class imbalance
+
+----------------------------------------------------------------------
+MODEL EXPLAINABILITY (Attention-based)
+----------------------------------------------------------------------
+
+roberta Explanations:
+----------------------------------------------------------------------
+
+Example 1:
+Text: dear taking into consideration phone use having some issues with please help procure another phone would greatly appreciate if phone would be dual thanks officer
+True: medium | Predicted: medium | Confidence: 0.717 | Correct: True
+Important tokens:
+  - '</s>': 0.2849
+  - 'Ġthanks': 0.0746
+  - 'd': 0.0676
+  - 'ear': 0.0609
+  - '<s>': 0.0362
+
+Example 2:
+Text: sent monday october server work server work please restart application engineer en
+True: high | Predicted: high | Confidence: 0.512 | Correct: True
+Important tokens:
+  - '</s>': 0.2791
+  - 'sent': 0.1799
+  - 'Ġrestart': 0.0726
+  - 'Ġplease': 0.0540
+  - 'Ġserver': 0.0537
+
+Example 3:
+Text: thursday november pm re please create code please find attached form filled out note since relevant left blank actual opportunity chasing has has code thanks director thursday november pm please creat...
+True: low | Predicted: low | Confidence: 0.762 | Correct: True
+Important tokens:
+  - '<s>': 0.0824
+  - '</s>': 0.0537
+  - 'Ġext': 0.0295
+  - 'Ġdirector': 0.0275
+  - 'Ġre': 0.0269
+
+Example 4:
+Text: tuesday pm mailing dear kind create mailing members thanks senior infrastructure engineer infrastructure
+True: low | Predicted: low | Confidence: 0.812 | Correct: True
+Important tokens:
+  - '</s>': 0.1471
+  - '<s>': 0.1302
+  - 'Ġpm': 0.0870
+  - 'uesday': 0.0635
+  - 'Ġengineer': 0.0597
+
+Example 5:
+Text: friday july pm migration hello please tickets order decommission resources architect file shared folder storage shared folder thank engineer friday july pm re migration please archive release resource...
+True: low | Predicted: low | Confidence: 0.802 | Correct: True
+Important tokens:
+  - '<s>': 0.0720
+  - '</s>': 0.0467
+  - 'Ġengineer': 0.0192
+  - 'Ġconsultant': 0.0189
+  - 'Ġpm': 0.0181
+
+
+bert Explanations:
+----------------------------------------------------------------------
+
+Example 1:
+Text: dear taking into consideration phone use having some issues with please help procure another phone would greatly appreciate if phone would be dual thanks officer
+True: medium | Predicted: medium | Confidence: 0.692 | Correct: True
+Important tokens:
+  - 'dear': 0.1710
+  - 'would': 0.1102
+  - 'officer': 0.0554
+  - 'phone': 0.0359
+  - 'dual': 0.0330
+
+Example 2:
+Text: sent monday october server work server work please restart application engineer en
+True: high | Predicted: medium | Confidence: 0.556 | Correct: False
+Important tokens:
+  - 'sent': 0.1020
+  - 'please': 0.0914
+  - 'en': 0.0889
+  - 'server': 0.0793
+  - 'server': 0.0675
+
+Example 3:
+Text: thursday november pm re please create code please find attached form filled out note since relevant left blank actual opportunity chasing has has code thanks director thursday november pm please creat...
+True: low | Predicted: low | Confidence: 0.999 | Correct: True
+Important tokens:
+  - 'pm': 0.0612
+  - 'pm': 0.0553
+  - 'thursday': 0.0530
+  - 'pm': 0.0509
+  - 'november': 0.0438
+
+Example 4:
+Text: tuesday pm mailing dear kind create mailing members thanks senior infrastructure engineer infrastructure
+True: low | Predicted: low | Confidence: 0.999 | Correct: True
+Important tokens:
+  - 'pm': 0.2047
+  - 'tuesday': 0.1429
+  - 'dear': 0.0690
+  - 'thanks': 0.0434
+  - 'mail': 0.0392
+
+Example 5:
+Text: friday july pm migration hello please tickets order decommission resources architect file shared folder storage shared folder thank engineer friday july pm re migration please archive release resource...
+True: low | Predicted: low | Confidence: 0.999 | Correct: True
+Important tokens:
+  - 'pm': 0.0500
+  - 'pm': 0.0489
+  - 'thank': 0.0461
+  - 'pm': 0.0450
+  - 'friday': 0.0437
+
+
+----------------------------------------------------------------------
+RECOMMENDATIONS
+----------------------------------------------------------------------
+
+1. DEPLOYMENT: Use roberta model for production
+
+2. MONITORING:
+   - Track model performance on new data
+   - Monitor for data drift
+   - Retrain quarterly with new examples
+
+3. IMPROVEMENTS:
+   - Collect more training data for minority classes
+   - Implement active learning for uncertain cases
+   - Consider ensemble methods
+
+----------------------------------------------------------------------
+MODEL VERSIONING (MLflow)
+----------------------------------------------------------------------
+
+Experiment: urgency_classification
+Tracking URI: ./mlruns
+
+View experiments: mlflow ui
+Compare runs in MLflow UI
+
+======================================================================
+END OF REPORT
+======================================================================
