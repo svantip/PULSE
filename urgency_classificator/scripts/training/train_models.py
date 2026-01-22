@@ -231,9 +231,19 @@ class ModelTrainer:
             # Load tokenizer and model
             print("\nLoading tokenizer and model...")
             tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+            # Apply dropout settings from config if specified
+            model_config_kwargs = {
+                'num_labels': len(self.label_map)
+            }
+            if 'ATTENTION_DROPOUT' in self.training_config:
+                model_config_kwargs['attention_probs_dropout_prob'] = self.training_config['ATTENTION_DROPOUT']
+            if 'HIDDEN_DROPOUT' in self.training_config:
+                model_config_kwargs['hidden_dropout_prob'] = self.training_config['HIDDEN_DROPOUT']
+
             model = AutoModelForSequenceClassification.from_pretrained(
                 model_name,
-                num_labels=len(self.label_map)
+                **model_config_kwargs
             )
 
             # Create datasets
@@ -339,6 +349,8 @@ class ModelTrainer:
                 seed=self.training_config['SEED'],
                 lr_scheduler_type=self.training_config['LR_SCHEDULER_TYPE'],
                 max_grad_norm=self.training_config.get('MAX_GRAD_NORM', 1.0),
+                label_smoothing_factor=self.training_config.get(
+                    'LABEL_SMOOTHING', 0.0),  # Prevents overconfident predictions
                 fp16=torch.cuda.is_available(),  # Enable only on CUDA GPUs
                 dataloader_num_workers=self.training_config['DATALOADER_NUM_WORKERS'],
                 dataloader_pin_memory=torch.cuda.is_available()  # Pin memory only with CUDA
@@ -348,14 +360,23 @@ class ModelTrainer:
             # - epochs, batch_size, learning_rate, weight_decay, etc.
             # We only log additional custom parameters here
 
-            # Custom Trainer with class weights
+            # Custom Trainer with class weights AND label smoothing
+            # Note: We must handle label smoothing here since we override compute_loss
             class WeightedTrainer(Trainer):
                 def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
                     labels = inputs.pop("labels")
                     outputs = model(**inputs)
                     logits = outputs.logits
+
+                    # Get label smoothing from TrainingArguments
+                    label_smoothing = self.args.label_smoothing_factor if hasattr(
+                        self.args, 'label_smoothing_factor') else 0.0
+
+                    # Apply both class weights AND label smoothing in loss function
                     loss_fct = torch.nn.CrossEntropyLoss(
-                        weight=class_weights.to(logits.device))
+                        weight=class_weights.to(logits.device),
+                        label_smoothing=label_smoothing  # This applies it once
+                    )
                     loss = loss_fct(logits, labels)
                     return (loss, outputs) if return_outputs else loss
 

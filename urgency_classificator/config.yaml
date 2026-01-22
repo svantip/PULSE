@@ -16,19 +16,19 @@ LABELS:
   - "medium"
   - "high"
 
-# Training configuration
+# Training configuration - Optimized for 71% LOW, 17% HIGH, 11% MEDIUM imbalance
 TRAINING:
-  LEARNING_RATE: 0.00003 # 3e-5
-  BATCH_SIZE: 16 # Increased for shorter texts
+  LEARNING_RATE: 0.00003 # 3e-5 - slightly higher for better minority class learning
+  BATCH_SIZE: 16
   EVAL_BATCH_SIZE: 32
-  GRADIENT_ACCUMULATION_STEPS: 1
-  NUM_EPOCHS: 4 # More epochs for better learning
+  GRADIENT_ACCUMULATION_STEPS: 2
+  NUM_EPOCHS: 5
   WEIGHT_DECAY: 0.01
   WARMUP_STEPS: 0
   WARMUP_RATIO: 0.1
-  MAX_LENGTH: 192 # Reduced to 192 (text avg 267 chars)
-  LR_SCHEDULER_TYPE: "cosine"
-  EARLY_STOPPING_PATIENCE: 2
+  MAX_LENGTH: 192
+  LR_SCHEDULER_TYPE: "linear"
+  EARLY_STOPPING_PATIENCE: 3
   EARLY_STOPPING_THRESHOLD: 0.001
   MAX_GRAD_NORM: 1.0
   EVAL_STEPS: 250
@@ -37,14 +37,16 @@ TRAINING:
   SAVE_TOTAL_LIMIT: 3
   DATALOADER_NUM_WORKERS: 4
   SEED: 42
+  LABEL_SMOOTHING: 0.1 # KEY FIX: Prevents 100% confidence on LOW class
 
-# Class weight multipliers (balanced for stable training)
+# Class weight multipliers - Optimized based on training experiments
 # Distribution: LOW 71%, MEDIUM 11%, HIGH 17%
-# Using gentler multipliers to avoid training instability
+# Base formula: n_samples / (n_classes * n_samples_for_class)
+# Strategy: Use balanced weights with slight boost to most underrepresented class
 CLASS_WEIGHTS:
-  LOW: 0.7 # Gentle reduction for majority class (71%)
-  MEDIUM: 1.5 # Conservative boost for minority class (11%)
-  HIGH: 1.2 # Balanced weight for high (17%)
+  LOW: 0.47 # Balanced (48411 / (3 * 34509)) - mild penalty for majority
+  MEDIUM: 3.2 # Boosted from 2.92 - most underrepresented, needs extra help
+  HIGH: 2.0 # Slightly boosted from 1.93 - important to detect urgency
 
 # Model versioning
 VERSIONING:
