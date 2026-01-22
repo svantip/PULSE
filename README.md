@@ -1,7 +1,14 @@
-# PULSE
-PULSE - Priority Using Language, Sentiment & Escalation
+# PULSE - Priority and Urgency Level System Engine
 
-An ML-powered classification system for emotion and urgency detection with explainability and model versioning.
+AI-powered ticket classification system that automatically analyzes customer messages to determine urgency levels and detect emotions, helping support teams prioritize and respond effectively.
+
+## 🎯 What Does PULSE Do?
+
+PULSE provides three main services:
+
+1. **Urgency Classification** - Classifies messages as HIGH, MEDIUM, or LOW urgency
+2. **Emotion Detection** - Identifies customer emotions (happy, sad, angry, frustrated, satisfied, neutral)
+3. **Slack Integration** - Automatically analyzes incoming Slack messages and posts formatted reports
 
 ## 🏗️ Project Structure
 
@@ -21,114 +28,270 @@ PULSE/
 └── requirements.txt             # Python dependencies
 ```
 
-## 🚀 Features
+## 🚀 Quick Start & Running Services
 
-- **Dual Classification**: Separate models for emotion and urgency detection
-- **Fine-tuning Support**: Built on transformer models (DistilBERT) with easy fine-tuning
-- **Explainability**: Gradient-based token importance for model interpretability
-- **Model Versioning**: MLflow integration for experiment tracking and model versioning
-- **REST API**: FastAPI-based endpoints for predictions
-- **Batch Processing**: Support for single and batch predictions
+### Prerequisites
 
-## 📦 Installation
+- Python 3.8+
+- pip (Python package manager)
+- (Optional) Slack workspace for integration
 
-1. Clone the repository:
+### Installation
+
+1. **Navigate to the project directory**
+
+   ```bash
+   cd /Users/svantipuric/FIDIT_projects/PULSE
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Set up environment variables (for Slack integration)**
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your Slack credentials
+   ```
+
+## 🎮 How to Start All Services
+
+### Option 1: Start Everything Together (Recommended for Testing)
+
+Start both the API server and web UI in one command:
+
 ```bash
-git clone https://github.com/svantip/PULSE.git
-cd PULSE
+cd scripts
+./start_services.sh
 ```
 
-2. Install dependencies:
+This will launch:
+
+- **API Server** at http://localhost:8000
+- **Gradio Web UI** at http://localhost:7860
+
+Press `Ctrl+C` to stop all services.
+
+### Option 2: Start Services Individually
+
+#### Start the API Server Only
+
 ```bash
-pip install -r requirements.txt
+# Using Python directly
+python controller.py
+
+# Or using uvicorn with auto-reload (recommended for development)
+uvicorn controller:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## 🎯 Usage
+API will be available at: http://localhost:8000
 
-### Starting the API Server
+#### Start the Web UI Only (Gradio)
 
 ```bash
+python app.py
+```
+
+Web interface will be available at: http://localhost:7860
+
+### Option 3: Start with Slack Integration
+
+For Slack bot integration with auto-analysis:
+
+```bash
+cd scripts
+./quickstart_slack.sh
+```
+
+Follow the prompts to configure Slack credentials and ngrok for local development.
+
+## 📖 How to Use PULSE
+
+### 1. Using the Web Interface (Easiest Method)
+
+The Gradio UI is the simplest way to test the classifiers:
+
+1. **Start the services**: `python app.py` or use `./scripts/start_services.sh`
+2. **Open your browser**: http://localhost:7860
+3. **Enter a message**: Type or paste a customer message
+4. **Get results instantly**:
+   - Urgency level (HIGH/MEDIUM/LOW)
+   - Emotion type (angry, happy, frustrated, etc.)
+   - Confidence scores
+   - Important keywords highlighted
+
+**Example messages to try:**
+
+- "URGENT: Production server is down!" → HIGH urgency, frustrated/angry
+- "The app is running a bit slow today" → MEDIUM urgency, neutral
+- "Thanks for the quick fix!" → LOW urgency, happy
+- "I've been waiting for 2 hours!" → MEDIUM urgency, frustrated
+
+### 2. Using the API (For Integration)
+
+#### Combined Analysis (Urgency + Emotion)
+
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "URGENT: Production server is down!",
+    "slack_channel": "support-tickets",
+    "include_explanation": false
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "timestamp": "2026-01-22T19:30:00",
+  "text": "URGENT: Production server is down!",
+  "urgency": {
+    "level": "high",
+    "confidence": 0.92,
+    "all_scores": { "high": 0.92, "medium": 0.06, "low": 0.02 }
+  },
+  "emotion": {
+    "type": "angry",
+    "confidence": 0.88,
+    "all_scores": { "angry": 0.88, "frustrated": 0.1, "neutral": 0.02 }
+  },
+  "priority_flag": {
+    "level": "high",
+    "escalate": true,
+    "reason": "High urgency with angry emotion"
+  }
+}
+```
+
+#### Urgency Classification Only
+
+```bash
+curl -X POST http://localhost:8000/urgency/predict \
+  -H "Content-Type: application/json" \
+  -d '{"message": "The server is not responding"}'
+```
+
+#### Emotion Detection Only
+
+```bash
+curl -X POST http://localhost:8000/emotion/predict \
+  -H "Content-Type: application/json" \
+  -d '{"message": "I am so frustrated with this issue"}'
+```
+
+#### Health Check
+
+```bash
+curl http://localhost:8000/health
+```
+
+**Full API documentation available at:**
+
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+### 3. Using Slack Integration
+
+Once configured (see [Slack Integration Guide](docs/SLACK_INTEGRATION.md)), the bot will:
+
+1. **Listen** for messages in channels it's invited to
+2. **Analyze** each message for urgency and emotion
+3. **Post** formatted reports to your support channel
+
+**To use:**
+
+1. Invite the bot: `/invite @Ticket Analyzer`
+2. Send a message: `URGENT: Production server is down!`
+3. Check your support channel for the analysis report
+
+## 🧪 Testing
+
+Run the test scripts to verify everything works:
+
+```bash
+# Test the API endpoints
+python tests/test_api.py
+
+# Test Slack integration
+python tests/test_slack_integration.py
+```
+
+## 🚦 Check Service Status
+
+```bash
+# Check if API is running
+curl http://localhost:8000/health
+
+# Check processes
+ps aux | grep controller
+ps aux | grep app.py
+
+# Check ports
+lsof -i :8000  # API
+lsof -i :7860  # Gradio UI
+```
+
+## 🐛 Troubleshooting
+
+### Services Won't Start
+
+```bash
+# Check if ports are already in use
+lsof -i :8000
+lsof -i :7860
+
+# Kill processes if needed
+kill -9 <PID>
+
+# Restart services
 python controller.py
 ```
 
-The API will be available at `http://localhost:8000`
+### Models Not Loading
 
-### API Endpoints
-
-#### 1. Emotion Prediction
 ```bash
-POST /emotion/predict
-Content-Type: application/json
+# Reinstall dependencies
+pip install -r requirements.txt
 
-{
-  "text": "I am so happy today!",
-  "explain": true
-}
+# Check Python version (3.8+ required)
+python --version
 ```
 
-Response:
-```json
-{
-  "emotion": "joy",
-  "confidence": 0.92,
-  "all_scores": {
-    "joy": 0.92,
-    "sadness": 0.02,
-    "anger": 0.01,
-    "fear": 0.02,
-    "surprise": 0.02,
-    "neutral": 0.01
-  },
-  "explanation": {
-    "method": "gradient_based",
-    "token_importance": [...],
-    "description": "Token importance based on gradient magnitudes"
-  }
-}
-```
+### Slack Bot Not Responding
 
-#### 2. Urgency Prediction
+1. Verify bot is invited: `/invite @Ticket Analyzer`
+2. Check `.env` file has correct credentials
+3. Ensure server is publicly accessible (use ngrok for local dev)
+4. Check server logs for errors
+
+### Import Errors
+
+Run from project root:
+
 ```bash
-POST /urgency/predict
-Content-Type: application/json
-
-{
-  "text": "URGENT: Server is down and users cannot access the system!",
-  "explain": false
-}
+cd /Users/svantipuric/FIDIT_projects/PULSE
+python controller.py
 ```
 
-Response:
-```json
-{
-  "urgency": "critical",
-  "confidence": 0.87,
-  "all_scores": {
-    "low": 0.02,
-    "medium": 0.05,
-    "high": 0.06,
-    "critical": 0.87
-  }
-}
-```
+## 📚 Additional Documentation
 
-#### 3. Batch Predictions
-```bash
-POST /emotion/predict/batch
-Content-Type: application/json
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Detailed getting started
+- **[Slack Integration](docs/SLACK_INTEGRATION.md)** - Complete Slack setup
+- **[Project Structure](PROJECT_STRUCTURE.md)** - Organized file structure
 
-{
-  "texts": ["I love this!", "This is terrible"],
-  "explain": false
-}
-```
+## 🚀 Features
 
-#### 4. Health Check
-```bash
-GET /health
-```
-
-## ⚙️ Configuration
+- **Dual Classification**: Separate models for emotion and urgency detection
+- **Web Interface**: Gradio UI for easy testing
+- **REST API**: FastAPI endpoints for integration
+- **Slack Integration**: Automated ticket analysis in Slack
+- **Explainability**: Gradient-based token importance
+- **Model Versioning**: MLflow integration for experiment tracking
+- **Batch Processing**: Support for single and batch predictions
 
 All classifier settings are managed through YAML configuration files. No values are hardcoded.
 
@@ -278,6 +441,7 @@ python controller.py
 ## 🔬 Classification Labels
 
 ### Emotion Labels
+
 - joy
 - sadness
 - anger
@@ -286,6 +450,7 @@ python controller.py
 - neutral
 
 ### Urgency Labels
+
 - low
 - medium
 - high
