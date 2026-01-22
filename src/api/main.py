@@ -1,4 +1,4 @@
-from slack_service import SlackTicketAnalyzer
+from src.integrations.slack.service import SlackTicketAnalyzer
 from fastapi import FastAPI, HTTPException, Request, Header
 from pydantic import BaseModel, Field
 from transformers import AutoTokenizer, AutoModelForSequenceClassification

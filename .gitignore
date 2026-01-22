@@ -218,3 +218,13 @@ mlartifacts/
 # Test scripts (for local validation only)
 test_structure.py
 check_syntax.py
+
+# models
+trained_models
+
+# data
+data
+
+.vscode
+
+blah

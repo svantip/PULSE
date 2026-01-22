@@ -2,27 +2,70 @@
 
 # Models to compare (list of model configurations)
 MODELS:
-  - NAME: "distilbert-base-uncased"
-    ALIAS: "distilbert"
+  - NAME: "roberta-base"
+    ALIAS: "roberta"
+    DESCRIPTION: "RoBERTa - Optimized for English text classification"
   - NAME: "bert-base-uncased"
     ALIAS: "bert"
+    DESCRIPTION: "BERT Base Uncased - English baseline model"
 
-NUM_LABELS: 4
+# Labels
+NUM_LABELS: 3
 LABELS:
   - "low"
   - "medium"
   - "high"
-  - "critical"
 
-# Training configuration
+# Training configuration - ANTI-OVERFITTING (Based on best run: Jan 18, 2026)
+# Problem: 99.4% F1 on LOW, only 58.4% on MEDIUM = severe overfitting
+# Solution: Reduce epochs, add dropout, increase regularization
 TRAINING:
-  LEARNING_RATE: 2e-5
+  LEARNING_RATE: 0.00002 # REDUCED from 3e-5 - slower learning
   BATCH_SIZE: 16
-  NUM_EPOCHS: 3
-  WEIGHT_DECAY: 0.01
-  
+  EVAL_BATCH_SIZE: 32
+  GRADIENT_ACCUMULATION_STEPS: 2
+  NUM_EPOCHS: 3 # REDUCED from 5 - stop before overfitting
+  WEIGHT_DECAY: 0.02 # INCREASED from 0.01 - stronger L2 regularization
+  WARMUP_STEPS: 0
+  WARMUP_RATIO: 0.1
+  MAX_LENGTH: 192
+  LR_SCHEDULER_TYPE: "linear"
+  EARLY_STOPPING_PATIENCE: 2 # REDUCED from 3 - stop earlier
+  EARLY_STOPPING_THRESHOLD: 0.002 # INCREASED from 0.001 - more sensitive
+  MAX_GRAD_NORM: 0.5 # REDUCED from 1.0 - prevent large updates
+  EVAL_STEPS: 200 # REDUCED from 250 - evaluate more often
+  SAVE_STEPS: 200 # REDUCED from 250 - save more checkpoints
+  LOGGING_STEPS: 100
+  SAVE_TOTAL_LIMIT: 5 # INCREASED from 3 - keep more checkpoints
+  DATALOADER_NUM_WORKERS: 4
+  SEED: 42
+  LABEL_SMOOTHING: 0.2 # INCREASED from 0.1 - prevent 99% confidence
+  HIDDEN_DROPOUT: 0.2 # NEW: dropout in hidden layers
+  ATTENTION_DROPOUT: 0.2 # NEW: dropout in attention
+
+# Class weight multipliers - ANTI-OVERFITTING STRATEGY
+# Current: LOW=99.4% F1, MEDIUM=58.4% F1, HIGH=74.8% F1
+# Problem: Model memorizing LOW class (71% of data)
+# Solution: Heavily penalize LOW, massively boost MEDIUM
+CLASS_WEIGHTS:
+  LOW: 0.15 # HEAVILY REDUCED - strong penalty against LOW memorization
+  MEDIUM: 6.0 # HEAVILY INCREASED - force learning MEDIUM patterns
+  HIGH: 3.5 # INCREASED - boost urgency detection
+
 # Model versioning
 VERSIONING:
   ENABLED: true
   MLFLOW_TRACKING_URI: "./mlruns"
   EXPERIMENT_NAME: "urgency_classification"
+
+# Data split ratios
+DATA_SPLIT:
+  TRAIN: 0.7
+  VAL: 0.15
+  TEST: 0.15
+
+# Paths
+PATHS:
+  DATA: "data/clean.csv"
+  MODELS: "trained_models"
+  REPORTS: "reports"
