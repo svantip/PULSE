@@ -1,6 +1,3 @@
-"""
-Visualization utilities for model comparison and analysis.
-"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,7 +13,6 @@ def create_confusion_matrices(
     labels: list,
     output_path: str
 ):
-    """Create side-by-side confusion matrices."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     for idx, (results, title) in enumerate([
@@ -51,7 +47,6 @@ def create_performance_comparison(
     model2_name: str,
     output_path: str
 ):
-    """Create performance comparison bar chart."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
     metrics_names = ['Accuracy', 'Precision', 'Recall', 'F1-Score']
@@ -85,13 +80,11 @@ def create_performance_comparison(
     ax.set_ylim(0, 1.0)
     ax.grid(axis='y', alpha=0.3)
 
-    # Add value labels on bars
     for bars in [bars1, bars2]:
         for bar in bars:
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{height:.3f}',
-                    ha='center', va='bottom', fontsize=9)
+                    f'{height:.3f}', ha='center', va='bottom', fontsize=9)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
