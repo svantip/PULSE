@@ -1,7 +1,3 @@
-"""
-Urgency Prediction Module
-Handles predictions with explainability using gradient-based methods.
-"""
 import torch
 import numpy as np
 from typing import Dict, List, Any, Optional
@@ -11,20 +7,7 @@ from urgency_classificator.utils.config_loader import load_config, get_labels, g
 
 
 class UrgencyPredictor:
-    """
-    Urgency predictor with explainability support.
-    """
-
     def __init__(self, model_path: Optional[str] = None, model_name: str = None, config_path: str = None):
-        """
-        Initialize the predictor.
-
-        Args:
-            model_path: Path to fine-tuned model
-            model_name: Base model name if no fine-tuned model available (if None, loads from config)
-            config_path: Path to configuration file (if None, uses default)
-        """
-        # Load configuration
         self.config = load_config(config_path)
         self.urgency_labels = get_labels(self.config)
 
@@ -46,21 +29,9 @@ class UrgencyPredictor:
         self.model.eval()
 
     def predict(self, text: str, explain: bool = False) -> Dict[str, Any]:
-        """
-        Predict urgency level from text.
-
-        Args:
-            text: Input text to classify
-            explain: Whether to include explainability information
-
-        Returns:
-            Dictionary with prediction and optional explanation
-        """
-        # Tokenize input
         inputs = self.tokenizer(text, return_tensors="pt",
                                 truncation=True, max_length=512)
 
-        # Get prediction
         with torch.no_grad():
             outputs = self.model(**inputs)
             probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
@@ -81,21 +52,9 @@ class UrgencyPredictor:
         return result
 
     def _get_explanation(self, text: str, inputs: Dict) -> Dict[str, Any]:
-        """
-        Generate explanation for prediction using gradient-based approach.
-
-        Args:
-            text: Original text
-            inputs: Tokenized inputs
-
-        Returns:
-            Explanation dictionary with token importance
-        """
-        # Enable gradients temporarily for explanation
-        self.model.train()  # Set to train mode for gradients
+        self.model.train()
 
         try:
-            # Get embeddings (which are float tensors) instead of using input_ids directly
             input_ids = inputs['input_ids']
             attention_mask = inputs.get('attention_mask', None)
 

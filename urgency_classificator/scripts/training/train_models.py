@@ -1,58 +1,33 @@
-"""
-Model Training Script for Urgency Classification
-Streamlined training with configuration-based setup.
-
-NOTE: Run from project root using: python train.py
-      Or with PYTHONPATH: PYTHONPATH=. python scripts/training/train_models.py
-"""
 import sys
+import os
 import mlflow
 import mlflow.pytorch
 import numpy as np
 import pandas as pd
 import torch
+import warnings
 from datetime import datetime
 from typing import Dict, List, Tuple, Any
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.metrics import (
-    accuracy_score,
-    precision_recall_fscore_support,
-    confusion_matrix
-)
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix
 from sklearn.model_selection import train_test_split
-from transformers import (
-    AutoModelForSequenceClassification,
-    AutoTokenizer,
-    TrainingArguments,
-    Trainer,
-    EarlyStoppingCallback
-)
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, TrainingArguments, Trainer, EarlyStoppingCallback
 from torch.utils.data import Dataset
-import tempfile
-import warnings
+
 from utils.config_loader import load_config, get_labels, get_models
 from utils.visualization import create_all_visualizations
 from utils.reporting import generate_training_report
-import os
-# Suppress tokenizer parallelism warning
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+warnings.filterwarnings('ignore')
 
-
-# Add project root to path (needed when running script directly)
 project_root = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 
-# Project imports (after path is set up)
-
-warnings.filterwarnings('ignore')
-
-
 class UrgencyDataset(Dataset):
-    """PyTorch Dataset for urgency classification."""
-
     def __init__(self, texts, labels, tokenizer, max_length=512):
         self.texts = texts
         self.labels = labels
@@ -63,39 +38,26 @@ class UrgencyDataset(Dataset):
         return len(self.texts)
 
     def __getitem__(self, idx):
-        text = str(self.texts[idx])
-        label = self.labels[idx]
-
         encoding = self.tokenizer(
-            text,
+            str(self.texts[idx]),
             add_special_tokens=True,
             max_length=self.max_length,
             padding='max_length',
             truncation=True,
             return_tensors='pt'
         )
-
         return {
             'input_ids': encoding['input_ids'].flatten(),
             'attention_mask': encoding['attention_mask'].flatten(),
-            'labels': torch.tensor(label, dtype=torch.long)
+            'labels': torch.tensor(self.labels[idx], dtype=torch.long)
         }
 
 
 class ModelTrainer:
-    """Handles training of transformer models with configuration-based setup."""
-
     def __init__(self, config_path: str = None):
-        """
-        Initialize the trainer with configuration.
-
-        Args:
-            config_path: Path to config file (uses default if None)
-        """
         self.config = load_config(config_path)
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Load configuration
         self.labels = get_labels(self.config)
         self.models_config = get_models(self.config)
         self.training_config = self.config['TRAINING']
@@ -103,7 +65,6 @@ class ModelTrainer:
         self.paths_config = self.config['PATHS']
         self.data_split_config = self.config['DATA_SPLIT']
 
-        # Setup paths - get project root (two levels up from this script)
         project_root = os.path.abspath(
             os.path.join(os.path.dirname(__file__), '../..'))
         self.data_path = os.path.join(project_root, self.paths_config['DATA'])
@@ -112,19 +73,16 @@ class ModelTrainer:
         self.reports_dir = os.path.join(
             project_root, self.paths_config['REPORTS'])
 
-        # Create directories
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.reports_dir, exist_ok=True)
         os.makedirs(os.path.join(self.reports_dir, 'figures'), exist_ok=True)
 
-        # Label mapping
         self.label_map = {label: idx for idx, label in enumerate(self.labels)}
         self.id_to_label = {v: k for k, v in self.label_map.items()}
 
-        # Initialize MLflow
-        versioning_config = self.config['VERSIONING']
-        mlflow.set_tracking_uri(versioning_config['MLFLOW_TRACKING_URI'])
-        mlflow.set_experiment(versioning_config['EXPERIMENT_NAME'])
+        mlflow.set_tracking_uri(
+            self.config['VERSIONING']['MLFLOW_TRACKING_URI'])
+        mlflow.set_experiment(self.config['VERSIONING']['EXPERIMENT_NAME'])
 
         print("="*70)
         print("URGENCY CLASSIFICATION MODEL TRAINING")
@@ -135,7 +93,6 @@ class ModelTrainer:
         print(f"Labels: {self.labels}\n")
 
     def load_and_prepare_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """Load and split dataset."""
         print("Loading dataset...")
         df = pd.read_csv(self.data_path)
         df['label_id'] = df['priority'].map(self.label_map)
@@ -144,8 +101,6 @@ class ModelTrainer:
         print(f"Label distribution:")
         for label, count in df['priority'].value_counts().sort_index().items():
             print(f"  {label}: {count} ({count/len(df)*100:.2f}%)")
-
-        # Split data based on config
         val_test_size = 1.0 - self.data_split_config['TRAIN']
         test_ratio = self.data_split_config['TEST'] / val_test_size
 
@@ -166,8 +121,6 @@ class ModelTrainer:
         return train_df, val_df, test_df
 
     def _log_device_info(self):
-        """Log device and environment information to MLflow."""
-        # PyTorch and CUDA info
         mlflow.log_param("torch_version", torch.__version__)
         mlflow.log_param("cuda_available", torch.cuda.is_available())
 
@@ -191,18 +144,6 @@ class ModelTrainer:
         test_df: pd.DataFrame,
         model_name: str
     ) -> Dict[str, Any]:
-        """
-        Train transformer model using configuration.
-
-        Args:
-            train_df: Training data
-            val_df: Validation data
-            test_df: Test data
-            model_name: HuggingFace model name
-
-        Returns:
-            Dictionary with model, metrics, and metadata
-        """
         print("="*70)
         print(f"TRAINING MODEL: {model_name}")
         print("="*70)
@@ -213,40 +154,31 @@ class ModelTrainer:
         run_name = f"{model_short_name}_{self.timestamp}"
 
         with mlflow.start_run(run_name=run_name):
-            # Log device and environment info
             self._log_device_info()
 
-            # Log config.yaml as artifact for reproducibility
             config_path = os.path.join(project_root, 'config.yaml')
             if os.path.exists(config_path):
                 mlflow.log_artifact(config_path, "config")
 
-            # Log basic model info (avoid duplicates with TrainingArguments auto-logging)
             mlflow.log_param("model_name", model_short_name)
             mlflow.log_param("base_model_hf", model_name)
             mlflow.log_param("train_samples", len(train_df))
             mlflow.log_param("val_samples", len(val_df))
             mlflow.log_param("test_samples", len(test_df))
 
-            # Load tokenizer and model
             print("\nLoading tokenizer and model...")
             tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-            # Apply dropout settings from config if specified
-            model_config_kwargs = {
-                'num_labels': len(self.label_map)
-            }
+            model_config_kwargs = {'num_labels': len(self.label_map)}
             if 'ATTENTION_DROPOUT' in self.training_config:
                 model_config_kwargs['attention_probs_dropout_prob'] = self.training_config['ATTENTION_DROPOUT']
             if 'HIDDEN_DROPOUT' in self.training_config:
                 model_config_kwargs['hidden_dropout_prob'] = self.training_config['HIDDEN_DROPOUT']
 
             model = AutoModelForSequenceClassification.from_pretrained(
-                model_name,
-                **model_config_kwargs
+                model_name, **model_config_kwargs
             )
 
-            # Create datasets
             print("Creating datasets...")
             train_dataset = UrgencyDataset(
                 train_df['body'].values,
@@ -261,14 +193,9 @@ class ModelTrainer:
                 max_length=self.training_config['MAX_LENGTH']
             )
 
-            # Compute class weights from config - ensure proper label alignment
-            # Sort to match label order
             unique_labels = np.sort(np.unique(train_df['label_id']))
             class_weights = compute_class_weight(
-                'balanced',
-                classes=unique_labels,
-                y=train_df['label_id']
-            )
+                'balanced', classes=unique_labels, y=train_df['label_id'])
             class_weights = torch.tensor(class_weights, dtype=torch.float)
 
             # Apply multipliers from config - explicitly match label_id order
@@ -337,7 +264,7 @@ class ModelTrainer:
                 warmup_ratio=self.training_config['WARMUP_RATIO'],
                 logging_dir=os.path.join(self.output_dir, 'logs'),
                 logging_steps=self.training_config['LOGGING_STEPS'],
-                eval_strategy="steps",
+                evaluation_strategy="steps",
                 eval_steps=eval_steps,  # Use calculated optimal value
                 save_strategy="steps",
                 save_steps=eval_steps,  # Save at same frequency as eval
@@ -640,10 +567,10 @@ class ModelTrainer:
         print("\n" + "="*70)
         print("TRAINING PIPELINE COMPLETED!")
         print("="*70)
-        print(f"\n✓ Models saved to: {self.output_dir}")
-        print(f"✓ Reports saved to: {self.reports_dir}")
+        print(f"\nModels saved to: {self.output_dir}")
+        print(f"Reports saved to: {self.reports_dir}")
         print(
-            f"✓ MLflow tracking: {self.config['VERSIONING']['MLFLOW_TRACKING_URI']}")
+            f"MLflow tracking: {self.config['VERSIONING']['MLFLOW_TRACKING_URI']}")
         print(f"\nTo view MLflow UI: mlflow ui")
         print("="*70 + "\n")
 
@@ -655,8 +582,6 @@ class ModelTrainer:
 
 
 def main():
-    """Main execution function."""
-    # Get project root (two levels up from this script)
     project_root = os.path.abspath(
         os.path.join(os.path.dirname(__file__), '../..'))
     data_path = os.path.join(project_root, "data", "clean.csv")
@@ -669,7 +594,7 @@ def main():
     trainer = ModelTrainer()
     results = trainer.run_full_training_pipeline()
 
-    print("\n🎉 Training complete! Check the reports folder for analysis.")
+    print("\nTraining complete! Check the reports folder for analysis.")
 
 
 if __name__ == "__main__":
