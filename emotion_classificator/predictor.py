@@ -1,28 +1,25 @@
 """
-Emotion Prediction Module
-Handles predictions with explainability using gradient-based methods.
+Emotion Predictor with PEFT support
 """
+import os
 import torch
-import numpy as np
-from typing import Dict, List, Any, Optional
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from peft import PeftModel, PeftConfig
+import logging
+from typing import Dict, List, Tuple, Optional
 
-from .config_loader import load_config, get_labels, get_model_name
-
+logger = logging.getLogger(__name__)
 
 class EmotionPredictor:
-    """
-    Emotion predictor with explainability support.
-    """
-
-    def __init__(self, model_path: Optional[str] = None, model_name: str = None, config_path: str = None):
+    """Emotion classification predictor with PEFT LoRA support"""
+    
+    def __init__(self, model_path: Optional[str] = None):
         """
-        Initialize the predictor.
-
+        Initialize emotion predictor
+        
         Args:
-            model_path: Path to fine-tuned model
-            model_name: Base model name if no fine-tuned model available (if None, loads from config)
-            config_path: Path to configuration file (if None, uses default)
+            model_path: Path to local model OR HuggingFace model name
+                       If None, uses EMOTION_MODEL_PATH env var or default HF model
         """
         # Load configuration
         self.config = load_config(config_path)
@@ -43,147 +40,172 @@ class EmotionPredictor:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         self.model.eval()
-
-    def predict(self, text: str, explain: bool = False) -> Dict[str, Any]:
+        
+        # Load tokenizer from base model
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            peft_config.base_model_name_or_path
+        )
+        
+        self.is_peft_model = True
+        self.labels = ["joy", "sadness", "anger", "love", "surprise", "neutral"]
+        
+        logger.info("✓ Loaded as PEFT LoRA model")
+    
+    def _load_standard_model(self):
+        """Load standard transformers model (fallback)"""
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            self.model_path
+        )
+        self.model.to(self.device)
+        self.model.eval()
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+        
+        # Try to get labels from config
+        if hasattr(self.model.config, 'id2label'):
+            self.labels = list(self.model.config.id2label.values())
+        else:
+            self.labels = ["joy", "sadness", "anger", "love", "surprise", "neutral"]
+        
+        logger.info("✓ Loaded as standard model")
+    
+    def predict(self, text: str, explain: bool = False) -> Dict:
         """
-        Predict emotion from text.
-
+        Predict emotion for given text
+        
         Args:
-            text: Input text to classify
-            explain: Whether to include explainability information
-
+            text: Input text
+            explain: Whether to include explanation
+            
         Returns:
-            Dictionary with prediction and optional explanation
+            Dict with emotion, confidence, all_scores, and optional explanation
         """
-        # Tokenize input
-        inputs = self.tokenizer(text, return_tensors="pt",
-                                truncation=True, max_length=512)
-
-        # Get prediction
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-            predicted_class = torch.argmax(probabilities, dim=-1).item()
-            confidence = probabilities[0][predicted_class].item()
-
-        result = {
-            "emotion": self.emotion_labels[predicted_class],
-            "confidence": float(confidence),
-            "all_scores": {
-                label: float(prob) for label, prob in zip(self.emotion_labels, probabilities[0])
-            }
-        }
-
-        if explain:
-            result["explanation"] = self._get_explanation(text, inputs)
-
-        return result
-
-    def _get_explanation(self, text: str, inputs: Dict) -> Dict[str, Any]:
-        """
-        Generate explanation for prediction using gradient-based approach.
-
-        Args:
-            text: Original text
-            inputs: Tokenized inputs
-
-        Returns:
-            Explanation dictionary with token importance
-        """
-        # Enable gradients temporarily for explanation
-        self.model.train()  # Set to train mode for gradients
-
-        try:
-            # Simple gradient-based explanation
-            inputs_with_grad = {k: v.clone().detach().requires_grad_(
-                True) for k, v in inputs.items() if k == 'input_ids'}
-
-            # Get model output
-            outputs = self.model(**{**inputs, **inputs_with_grad})
-            predicted_class = torch.argmax(outputs.logits, dim=-1).item()
-
-            # Compute gradients
-            outputs.logits[0, predicted_class].backward()
-
-            # Get token importance
-            token_ids = inputs['input_ids'][0].tolist()
-            tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
-
-            # Use gradient magnitude as importance score
-            if 'input_ids' in inputs_with_grad:
-                gradients = inputs_with_grad['input_ids'].grad
-                if gradients is not None:
-                    importance = gradients.abs().squeeze().tolist()
-                    if not isinstance(importance, list):
-                        importance = [importance]
-                else:
-                    importance = [0.0] * len(tokens)
-            else:
-                importance = [0.0] * len(tokens)
-
-            # Filter out special tokens and create word-level importance
-            token_importance = []
-            for token, score in zip(tokens, importance):
-                if token not in ['[CLS]', '[SEP]', '[PAD]']:
-                    token_importance.append({
-                        "token": token,
-                        "importance": float(score)
-                    })
-
-            return {
-                "method": "gradient_based",
-                "token_importance": token_importance[:20],  # Top 20 tokens
-                "description": "Token importance based on gradient magnitudes"
-            }
-        finally:
-            # Clean up and set back to eval mode
-            self.model.zero_grad()
-            self.model.eval()
-
-    def batch_predict(self, texts: List[str], explain: bool = False) -> List[Dict[str, Any]]:
-        """
-        Predict emotions for multiple texts using efficient batch processing.
-
-        Args:
-            texts: List of input texts
-            explain: Whether to include explanations
-
-        Returns:
-            List of prediction dictionaries
-        """
-        if not texts:
-            return []
-
-        # For explanations, process individually since gradients are per-sample
-        if explain:
-            return [self.predict(text, explain) for text in texts]
-
-        # Batch tokenization for efficiency
+        # Tokenize
         inputs = self.tokenizer(
-            texts,
+            text,
             return_tensors="pt",
             truncation=True,
             max_length=512,
             padding=True
-        )
-
-        # Get predictions for all texts
+        ).to(self.device)
+        
+        # Predict
         with torch.no_grad():
             outputs = self.model(**inputs)
-            probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-            predicted_classes = torch.argmax(probabilities, dim=-1).tolist()
-            confidences = torch.max(probabilities, dim=-1).values.tolist()
-
-        # Format results
-        results = []
-        for i, (pred_class, confidence) in enumerate(zip(predicted_classes, confidences)):
-            result = {
-                "emotion": self.emotion_labels[pred_class],
-                "confidence": float(confidence),
-                "all_scores": {
-                    label: float(prob) for label, prob in zip(self.emotion_labels, probabilities[i])
-                }
+            logits = outputs.logits
+            probabilities = torch.softmax(logits, dim=-1)[0]
+        
+        # Get predicted class
+        predicted_idx = torch.argmax(probabilities).item()
+        confidence = probabilities[predicted_idx].item()
+        predicted_emotion = self.labels[predicted_idx]
+        
+        # Create probability dictionary
+        all_scores = {
+            label: prob.item()
+            for label, prob in zip(self.labels, probabilities)
+        }
+        
+        result = {
+            "emotion": predicted_emotion,
+            "confidence": confidence,
+            "all_scores": all_scores
+        }
+        
+        # Add explanation if requested
+        if explain:
+            important_tokens = self.extract_important_tokens(text, inputs)
+            emotion_indicators = self.find_emotion_keywords(text, predicted_emotion)
+            
+            result["explanation"] = {
+                "method": "attention_based",
+                "important_tokens": important_tokens,
+                "emotion_indicators": emotion_indicators,
+                "reasoning": self._generate_reasoning(
+                    text, predicted_emotion, confidence, 
+                    important_tokens, emotion_indicators
+                ),
+                "model_type": "PEFT LoRA" if self.is_peft_model else "Standard",
+                "text_length": len(text.split())
             }
-            results.append(result)
-
-        return results
+        
+        return result
+    
+    def extract_important_tokens(self, text: str, inputs: Dict, top_k: int = 10) -> List[Tuple[str, float]]:
+        """Extract important tokens using model's attention weights"""
+        try:
+            with torch.no_grad():
+                outputs = self.model(**inputs, output_attentions=True)
+                attentions = outputs.attentions
+            
+            # Get attention from last layer
+            last_layer_attention = attentions[-1][0]
+            avg_attention = last_layer_attention.mean(dim=0)
+            cls_attention = avg_attention[0, :].cpu().numpy()
+            
+            # Get tokens
+            tokens = self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
+            
+            # Pair tokens with attention scores
+            token_importance = []
+            for token, score in zip(tokens, cls_attention):
+                # Skip special tokens
+                if token not in ['<s>', '</s>', '<pad>', '<mask>', '[CLS]', '[SEP]', '[PAD]']:
+                    clean_token = token.replace('Ġ', '').replace('##', '').strip()
+                    if clean_token:
+                        token_importance.append((clean_token, float(score)))
+            
+            # Sort and return top k
+            token_importance.sort(key=lambda x: x[1], reverse=True)
+            return token_importance[:top_k]
+            
+        except Exception as e:
+            logger.error(f"Error extracting tokens: {e}")
+            return []
+    
+    def find_emotion_keywords(self, text: str, predicted_emotion: str) -> List[str]:
+        """Find emotion-related keywords (supplementary)"""
+        EMOTION_KEYWORDS = {
+            "joy": ["happy", "great", "wonderful", "excellent", "love", "amazing", "fantastic"],
+            "sadness": ["sad", "disappointed", "unhappy", "terrible", "awful", "bad"],
+            "anger": ["angry", "furious", "mad", "frustrated", "annoyed", "outraged"],
+            "love": ["love", "adore", "care", "cherish", "appreciate", "grateful"],
+            "surprise": ["wow", "amazing", "unexpected", "surprised", "shocking", "incredible"],
+            "neutral": ["ok", "fine", "alright", "normal", "regular"]
+        }
+        
+        text_lower = text.lower()
+        found_indicators = []
+        
+        for emotion, keywords in EMOTION_KEYWORDS.items():
+            for keyword in keywords:
+                if keyword in text_lower:
+                    found_indicators.append(f"{keyword} ({emotion})")
+        
+        return found_indicators
+    
+    def _generate_reasoning(self, text: str, emotion: str, confidence: float,
+                           important_tokens: List[Tuple[str, float]],
+                           emotion_indicators: List[str]) -> str:
+        """Generate human-readable explanation"""
+        reasoning_parts = []
+        
+        # Confidence
+        if confidence > 0.8:
+            reasoning_parts.append(f"High confidence ({confidence*100:.1f}%) in {emotion} classification.")
+        elif confidence > 0.6:
+            reasoning_parts.append(f"Moderate confidence ({confidence*100:.1f}%) in {emotion} classification.")
+        else:
+            reasoning_parts.append(f"Low confidence ({confidence*100:.1f}%). Text may be ambiguous.")
+        
+        # Model attention
+        if important_tokens:
+            top_tokens = [token for token, _ in important_tokens[:5]]
+            reasoning_parts.append(f"Model focused on: {', '.join(top_tokens)}.")
+        
+        # Keyword hints
+        if emotion_indicators:
+            keywords = ", ".join([ind.split(" (")[0] for ind in emotion_indicators[:3]])
+            reasoning_parts.append(f"Found emotion keywords: {keywords}.")
+        
+        return " ".join(reasoning_parts)

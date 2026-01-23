@@ -228,3 +228,9 @@ data
 .vscode
 
 blah
+# Model checkpoints (zadrži lokalno, ne šalji na Git)
+emotion_classificator/outputs/
+emotion_classificator/emotion_classificator/best_adapter/
+*.safetensors
+optimizer.pt
+pytorch_model.bin

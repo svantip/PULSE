@@ -9,25 +9,46 @@ from urgency_classificator.utils.config_loader import load_config, get_labels, g
 
 class UrgencyPredictor:
     def __init__(self, model_path: Optional[str] = None, model_name: str = None, config_path: str = None):
-        # config ostaje radi kompatibilnosti, ali za HF label mapping ćemo preferirati model.config
+        """
+        Initialize the predictor.
+
+        Args:
+            model_path: Path to fine-tuned model OR HuggingFace model name
+            model_name: Base model name if no fine-tuned model available (if None, loads from config)
+            config_path: Path to configuration file (if None, uses default)
+        """
+        # Load configuration
         self.config = load_config(config_path)
 
-        if model_name is None:
-            model_name = get_model_name(self.config)
-
-        # STRICT: uvijek učitaj iz model_name (HF) ako nije eksplicitno zadan model_path
-        source = model_path if model_path else model_name
-
-        self.model = AutoModelForSequenceClassification.from_pretrained(source)
-        self.tokenizer = AutoTokenizer.from_pretrained(source)
-
-        # Label mapping: preferiraj ono što je spremljeno u HF modelu (id2label)
-        if getattr(self.model.config, "id2label", None):
-            self.urgency_labels = [self.model.config.id2label[i]
-                                   for i in range(self.model.config.num_labels)]
+        # Priority: model_path > model_name > config
+        if model_path:
+            # model_path can be local path OR HuggingFace model ID
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+            print(f"✓ Loaded model from: {model_path}")
+        elif model_name:
+            # Use provided model name (can be HuggingFace ID)
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            print(f"✓ Loaded model: {model_name}")
         else:
-            # fallback na yaml samo ako HF model nema mapping
-            self.urgency_labels = get_labels(self.config)
+            # Fallback to config - but use HuggingFace model if available
+            default_model = get_model_name(self.config)
+            
+            # Try HuggingFace first
+            try:
+                hf_model = "svantip123/urgency_classificator"
+                self.model = AutoModelForSequenceClassification.from_pretrained(hf_model)
+                self.tokenizer = AutoTokenizer.from_pretrained(hf_model)
+                print(f"✓ Loaded fine-tuned model from HuggingFace: {hf_model}")
+            except Exception as e:
+                # Fallback to base model
+                print(f"⚠️ Cannot load HF model, using base: {default_model}")
+                self.model = AutoModelForSequenceClassification.from_pretrained(
+                    default_model,
+                    num_labels=len(self.urgency_labels)
+                )
+                self.tokenizer = AutoTokenizer.from_pretrained(default_model)
 
         self.model.eval()
 
