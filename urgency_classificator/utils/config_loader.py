@@ -36,9 +36,8 @@ def get_models(config: Dict[str, Any] = None) -> List[Dict[str, str]]:
 
 
 def get_model_name(config: Dict[str, Any] = None, alias: str = None) -> str:
-
-    Returns:
-        Model name
+    """
+    Returns: Model name
     """
     if config is None:
         config = load_config()

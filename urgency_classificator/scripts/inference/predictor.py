@@ -1,3 +1,4 @@
+from scipy import special
 import torch
 import numpy as np
 from typing import Dict, List, Any, Optional
@@ -8,23 +9,25 @@ from urgency_classificator.utils.config_loader import load_config, get_labels, g
 
 class UrgencyPredictor:
     def __init__(self, model_path: Optional[str] = None, model_name: str = None, config_path: str = None):
+        # config ostaje radi kompatibilnosti, ali za HF label mapping ćemo preferirati model.config
         self.config = load_config(config_path)
-        self.urgency_labels = get_labels(self.config)
 
         if model_name is None:
             model_name = get_model_name(self.config)
 
-        if model_path:
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_path)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        # STRICT: uvijek učitaj iz model_name (HF) ako nije eksplicitno zadan model_path
+        source = model_path if model_path else model_name
+
+        self.model = AutoModelForSequenceClassification.from_pretrained(source)
+        self.tokenizer = AutoTokenizer.from_pretrained(source)
+
+        # Label mapping: preferiraj ono što je spremljeno u HF modelu (id2label)
+        if getattr(self.model.config, "id2label", None):
+            self.urgency_labels = [self.model.config.id2label[i]
+                                   for i in range(self.model.config.num_labels)]
         else:
-            # Use base model as fallback
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name,
-                num_labels=len(self.urgency_labels)
-            )
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            # fallback na yaml samo ako HF model nema mapping
+            self.urgency_labels = get_labels(self.config)
 
         self.model.eval()
 
@@ -86,7 +89,8 @@ class UrgencyPredictor:
             # Filter out special tokens and create word-level importance
             token_importance = []
             for token, score in zip(tokens, importance):
-                if token not in ['[CLS]', '[SEP]', '[PAD]']:
+                special = set(self.tokenizer.all_special_tokens)
+                if token not in special:
                     token_importance.append({
                         "token": token,
                         "importance": float(score)

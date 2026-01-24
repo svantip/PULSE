@@ -38,7 +38,6 @@ class EmotionPredictor:
         else:
             # Use base model as fallback
             self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_name,
                 num_labels=len(self.emotion_labels)
             )
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)

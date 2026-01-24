@@ -1,5 +1,6 @@
 import sys
 import os
+import tempfile
 import mlflow
 import mlflow.pytorch
 import numpy as np

@@ -24,8 +24,6 @@ class SlackTicketAnalyzer:
 
     def __init__(
         self,
-        urgency_model_path: Optional[str] = None,
-        emotion_model_path: Optional[str] = None,
         slack_bot_token: Optional[str] = None
     ):
         """
@@ -38,23 +36,23 @@ class SlackTicketAnalyzer:
         """
         logger.info("Initializing Slack Ticket Analyzer...")
 
-        # Initialize classifiers
-        try:
-            self.urgency_predictor = UrgencyPredictor(
-                model_path=urgency_model_path)
-            logger.info("✓ Urgency classifier loaded")
-        except Exception as e:
-            logger.warning(f"Using HuggingFace urgency model: {e}")
-            self.urgency_predictor = UrgencyPredictor(
-                model_name="svantip123/urgency_classificator")
+        # Initialize classifiers (STRICTLY from Hugging Face)
+        self.urgency_predictor = UrgencyPredictor(
+            model_name="svantip123/urgency_classificator",
+            model_path=None
+        )
+        logger.info(
+            "✓ Urgency classifier loaded from Hugging Face: svantip123/urgency_classificator")
 
-        try:
-            self.emotion_predictor = EmotionPredictor(
-                model_path=emotion_model_path)
-            logger.info("✓ Emotion classifier loaded")
-        except Exception as e:
-            logger.warning(f"Using base emotion model: {e}")
-            self.emotion_predictor = EmotionPredictor()
+        """
+        self.emotion_predictor = EmotionPredictor(
+            model_name="EMOTION_MODEL_NAME_HERE",
+            model_path=None
+        )
+        """
+
+        logger.info(
+            "✓ Emotion classifier loaded from Hugging Face: MODEL_NAME_HERE")
 
         # Initialize Slack client if token provided
         self.slack_client = None
@@ -78,22 +76,28 @@ class SlackTicketAnalyzer:
         # Get predictions
         urgency_result = self.urgency_predictor.predict(
             text, explain=include_explanation)
-        emotion_result = self.emotion_predictor.predict(
-            text, explain=include_explanation)
+        """emotion_result = self.emotion_predictor.predict(
+            text, explain=include_explanation)"""
+
+        urgency_label = self._map_urgency_label(urgency_result.get("urgency"))
+        urgency_scores = {
+            self._map_urgency_label(label): score
+            for label, score in urgency_result.get("all_scores", {}).items()
+        }
 
         # Combine results
         analysis = {
             "timestamp": datetime.now().isoformat(),
             "text": text,
             "urgency": {
-                "level": urgency_result["urgency"],
+                "level": urgency_label,
                 "confidence": urgency_result["confidence"],
-                "all_scores": urgency_result["all_scores"]
+                "all_scores": urgency_scores
             },
             "emotion": {
-                "type": emotion_result["emotion"],
-                "confidence": emotion_result["confidence"],
-                "all_scores": emotion_result["all_scores"]
+                "type": None,  # emotion_result["emotion"],
+                "confidence": None,  # emotion_result["confidence"],
+                "all_scores": None  # emotion_result["all_scores"]
             }
         }
 
@@ -101,16 +105,30 @@ class SlackTicketAnalyzer:
         if include_explanation:
             if "explanation" in urgency_result:
                 analysis["urgency"]["explanation"] = urgency_result["explanation"]
-            if "explanation" in emotion_result:
-                analysis["emotion"]["explanation"] = emotion_result["explanation"]
+            """if "explanation" in emotion_result:
+                analysis["emotion"]["explanation"] = emotion_result["explanation"]"""
 
         # Add priority flag based on combination
         analysis["priority_flag"] = self._determine_priority(
-            urgency_result["urgency"],
-            emotion_result["emotion"]
+            urgency_label,
+            None  # emotion_result["emotion"]
         )
 
         return analysis
+
+    def _map_urgency_label(self, label: Optional[str]) -> Optional[str]:
+        if label is None:
+            return None
+        label_value = str(label)
+        match label_value.lower():
+            case "label_0":
+                return "low"
+            case "label_1":
+                return "medium"
+            case "label_2":
+                return "high"
+            case _:
+                return label_value
 
     def _determine_priority(self, urgency: str, emotion: str) -> Dict[str, Any]:
         """
@@ -127,19 +145,26 @@ class SlackTicketAnalyzer:
         escalate = False
         priority_level = "normal"
 
-        if urgency.lower() == "high":
+        urgency_value = (urgency or "").lower()
+        emotion_value = (emotion or "").lower()
+
+        if urgency_value == "high":
             priority_level = "high"
             escalate = True
-        elif urgency.lower() == "medium" and emotion.lower() in ["angry", "frustrated"]:
+        elif urgency_value == "medium" and emotion_value in ["angry", "frustrated"]:
             priority_level = "high"
             escalate = True
-        elif urgency.lower() == "medium":
+        elif urgency_value == "medium":
             priority_level = "medium"
+
+        reason_urgency = urgency_value.capitalize() if urgency_value else "Unknown"
+        reason_emotion = emotion_value if emotion_value else "emotion"
 
         return {
             "level": priority_level,
             "escalate": escalate,
-            "reason": f"{urgency.capitalize()} urgency with {emotion.lower()} emotion"
+            # {emotion.lower()}
+            "reason": f"{reason_urgency} urgency with {reason_emotion}"
         }
 
     def format_slack_message(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
@@ -212,7 +237,10 @@ class SlackTicketAnalyzer:
                     },
                     {
                         "type": "mrkdwn",
-                        "text": f"*{emotion_emoji.get(emotion.lower(), '🎭')} Customer Emotion:*\n{emotion.capitalize()} ({analysis['emotion']['confidence']*100:.1f}%)"
+                        # emotion.lower()
+                        # {emotion.capitalize()}
+                        # ({analysis['emotion']['confidence']*100:.1f}%)
+                        "text": f"*{emotion_emoji.get(None, '🎭')} Customer Emotion:*\n "
                     }
                 ]
             },
@@ -244,19 +272,19 @@ class SlackTicketAnalyzer:
         })
 
         # Add emotion breakdown
-        emotion_bars = ""
+        """emotion_bars = ""
         for label, score in sorted(analysis["emotion"]["all_scores"].items(), key=lambda x: x[1], reverse=True):
             bar_length = int(score * 10)
             bar = "▓" * bar_length + "░" * (10 - bar_length)
-            emotion_bars += f"{label.upper()}: {bar} {score*100:.0f}%\n"
+            emotion_bars += f"{label.upper()}: {bar} {score*100:.0f}%\n"""
 
-        blocks.append({
+        """blocks.append({
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": f"*💭 Emotion Breakdown:*\n```{emotion_bars}```"
             }
-        })
+        })"""
 
         # Add recommendation
         blocks.extend([
