@@ -21,24 +21,42 @@ class EmotionPredictor:
             model_path: Path to local model OR HuggingFace model name
                        If None, uses EMOTION_MODEL_PATH env var or default HF model
         """
-        # Load configuration
-        self.config = load_config(config_path)
-        self.emotion_labels = get_labels(self.config)
-
-        if model_name is None:
-            model_name = get_model_name(self.config)
-
-        if model_path:
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                model_path)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        else:
-            # Use base model as fallback
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                num_labels=len(self.emotion_labels)
-            )
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-
+        # Priority: function arg > env var > default HF model
+        self.model_path = (
+            model_path or 
+            os.getenv("EMOTION_MODEL_PATH") or 
+            "drPantagana/PULSE_emotion"
+        )
+        
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.is_peft_model = False
+        
+        logger.info(f"Loading emotion model from {self.model_path}")
+        
+        try:
+            # Try loading as PEFT model first
+            self._load_peft_model()
+        except Exception as e:
+            logger.warning(f"Failed to load as PEFT model: {e}")
+            logger.info("Attempting to load as standard model...")
+            self._load_standard_model()
+        
+        logger.info(f"EmotionPredictor ready on device={self.device} labels={self.labels}")
+    
+    def _load_peft_model(self):
+        """Load PEFT LoRA adapter model"""
+        # Load PEFT config
+        peft_config = PeftConfig.from_pretrained(self.model_path)
+        
+        # Load base model
+        base_model = AutoModelForSequenceClassification.from_pretrained(
+            peft_config.base_model_name_or_path,
+            num_labels=6
+        )
+        
+        # Load PEFT adapter
+        self.model = PeftModel.from_pretrained(base_model, self.model_path)
+        self.model.to(self.device)
         self.model.eval()
         
         # Load tokenizer from base model

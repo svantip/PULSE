@@ -9,48 +9,44 @@ from urgency_classificator.utils.config_loader import load_config, get_labels, g
 
 class UrgencyPredictor:
     def __init__(self, model_path: Optional[str] = None, model_name: str = None, config_path: str = None):
-        """
-        Initialize the predictor.
-
-        Args:
-            model_path: Path to fine-tuned model OR HuggingFace model name
-            model_name: Base model name if no fine-tuned model available (if None, loads from config)
-            config_path: Path to configuration file (if None, uses default)
-        """
-        # Load configuration
+        # config ostaje radi kompatibilnosti
         self.config = load_config(config_path)
 
-        # Priority: model_path > model_name > config
-        if model_path:
-            # model_path can be local path OR HuggingFace model ID
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-            print(f"✓ Loaded model from: {model_path}")
-        elif model_name:
-            # Use provided model name (can be HuggingFace ID)
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            print(f"✓ Loaded model: {model_name}")
+        if model_name is None:
+            model_name = get_model_name(self.config)
+
+        # STRICT: uvijek učitaj iz model_name (HF) ako nije eksplicitno zadan model_path
+        source = model_path if model_path else model_name
+
+        self.model = AutoModelForSequenceClassification.from_pretrained(source)
+        self.tokenizer = AutoTokenizer.from_pretrained(source)
+
+        # --- POPRAVLJENA LOGIKA ZA LABELE ---
+        
+        # 1. Pokušaj dohvatiti labele iz modela
+        hf_labels = []
+        if getattr(self.model.config, "id2label", None):
+            hf_labels = [self.model.config.id2label[i] for i in range(self.model.config.num_labels)]
+
+        # 2. Provjeri jesu li te labele generičke (npr. "LABEL_0", "LABEL_1"...)
+        # Pretvaramo u string da uhvatimo i slučajeve gdje su labele brojevi
+        are_labels_generic = False
+        if hf_labels:
+            first_label = str(hf_labels[0]).upper()
+            if first_label.startswith("LABEL") or first_label.isdigit():
+                are_labels_generic = True
+
+        # 3. Odluči koje labele koristiti
+        # Koristimo HF labele samo ako postoje I ako NISU generičke
+        if hf_labels and not are_labels_generic:
+            self.urgency_labels = hf_labels
         else:
-            # Fallback to config - but use HuggingFace model if available
-            default_model = get_model_name(self.config)
-            
-            # Try HuggingFace first
-            try:
-                hf_model = "svantip123/urgency_classificator"
-                self.model = AutoModelForSequenceClassification.from_pretrained(hf_model)
-                self.tokenizer = AutoTokenizer.from_pretrained(hf_model)
-                print(f"✓ Loaded fine-tuned model from HuggingFace: {hf_model}")
-            except Exception as e:
-                # Fallback to base model
-                print(f"⚠️ Cannot load HF model, using base: {default_model}")
-                self.model = AutoModelForSequenceClassification.from_pretrained(
-                    default_model,
-                    num_labels=len(self.urgency_labels)
-                )
-                self.tokenizer = AutoTokenizer.from_pretrained(default_model)
+            # Inače koristi naše lijepe labele iz configa (low, medium, high, critical)
+            # Ovo rješava problem s prikazom u Slacku
+            self.urgency_labels = get_labels(self.config)
 
         self.model.eval()
+
 
     def predict(self, text: str, explain: bool = False) -> Dict[str, Any]:
         inputs = self.tokenizer(text, return_tensors="pt",

@@ -21,8 +21,6 @@ app = FastAPI(title="Classification API")
 
 # Initialize Slack Ticket Analyzer
 slack_analyzer = SlackTicketAnalyzer(
-    urgency_model_path=None,  # Will use HuggingFace model
-    emotion_model_path=None,  # Will use PEFT model
     slack_bot_token=os.getenv("SLACK_BOT_TOKEN")
 )
 
