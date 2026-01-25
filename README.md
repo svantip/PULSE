@@ -1,4 +1,4 @@
-# PULSE - Priority and Urgency Level System Engine
+# PULSE - Priority Using Language, Sentiment & Escalation
 
 AI-powered ticket classification system that automatically analyzes customer messages to determine urgency levels and detect emotions, helping support teams prioritize and respond effectively.
 
