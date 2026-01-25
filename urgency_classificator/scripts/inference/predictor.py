@@ -9,7 +9,7 @@ from urgency_classificator.utils.config_loader import load_config, get_labels, g
 
 class UrgencyPredictor:
     def __init__(self, model_path: Optional[str] = None, model_name: str = None, config_path: str = None):
-        # config ostaje radi kompatibilnosti, ali za HF label mapping ćemo preferirati model.config
+        # config ostaje radi kompatibilnosti
         self.config = load_config(config_path)
 
         if model_name is None:
@@ -21,15 +21,32 @@ class UrgencyPredictor:
         self.model = AutoModelForSequenceClassification.from_pretrained(source)
         self.tokenizer = AutoTokenizer.from_pretrained(source)
 
-        # Label mapping: preferiraj ono što je spremljeno u HF modelu (id2label)
+        # --- POPRAVLJENA LOGIKA ZA LABELE ---
+        
+        # 1. Pokušaj dohvatiti labele iz modela
+        hf_labels = []
         if getattr(self.model.config, "id2label", None):
-            self.urgency_labels = [self.model.config.id2label[i]
-                                   for i in range(self.model.config.num_labels)]
+            hf_labels = [self.model.config.id2label[i] for i in range(self.model.config.num_labels)]
+
+        # 2. Provjeri jesu li te labele generičke (npr. "LABEL_0", "LABEL_1"...)
+        # Pretvaramo u string da uhvatimo i slučajeve gdje su labele brojevi
+        are_labels_generic = False
+        if hf_labels:
+            first_label = str(hf_labels[0]).upper()
+            if first_label.startswith("LABEL") or first_label.isdigit():
+                are_labels_generic = True
+
+        # 3. Odluči koje labele koristiti
+        # Koristimo HF labele samo ako postoje I ako NISU generičke
+        if hf_labels and not are_labels_generic:
+            self.urgency_labels = hf_labels
         else:
-            # fallback na yaml samo ako HF model nema mapping
+            # Inače koristi naše lijepe labele iz configa (low, medium, high, critical)
+            # Ovo rješava problem s prikazom u Slacku
             self.urgency_labels = get_labels(self.config)
 
         self.model.eval()
+
 
     def predict(self, text: str, explain: bool = False) -> Dict[str, Any]:
         inputs = self.tokenizer(text, return_tensors="pt",

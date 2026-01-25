@@ -2,6 +2,7 @@ from slack_service import SlackTicketAnalyzer
 from fastapi import FastAPI, HTTPException, Request, Header
 from pydantic import BaseModel, Field
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from peft import PeftModel, PeftConfig
 import torch
 import numpy as np
 import re
@@ -15,8 +16,6 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Import Slack service
-
 # Initialize FastAPI app
 app = FastAPI(title="Classification API")
 
@@ -25,13 +24,43 @@ slack_analyzer = SlackTicketAnalyzer(
     slack_bot_token=os.getenv("SLACK_BOT_TOKEN")
 )
 
-# Load model and tokenizer from Hugging Face
+# ==================== URGENCY MODEL ====================
+# Load urgency model and tokenizer from Hugging Face
 MODEL_NAME_1 = "svantip123/urgency_classificator"
 tokenizer_1 = AutoTokenizer.from_pretrained(MODEL_NAME_1)
 model_1 = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME_1)
 model_1.eval()
+# ==================== EMOTION MODEL (PEFT LoRA) ====================
+# Load emotion PEFT model
+MODEL_NAME_2 = "drPantagana/PULSE_emotion"
 
-# RULE-BASED keyword hints (supplementary to model's attention weights)
+print(f"Loading PEFT emotion model from {MODEL_NAME_2}...")
+
+# Load PEFT config
+peft_config_2 = PeftConfig.from_pretrained(MODEL_NAME_2)
+print(f"✓ PEFT config loaded. Base model: {peft_config_2.base_model_name_or_path}")
+
+# Load base model for emotion (roberta-base)
+base_model_2 = AutoModelForSequenceClassification.from_pretrained(
+    peft_config_2.base_model_name_or_path,
+    num_labels=6  # joy, sadness, anger, love, surprise, neutral
+)
+print(f"✓ Base model loaded: {peft_config_2.base_model_name_or_path}")
+
+# Load PEFT LoRA adapter on top of base model
+model_2 = PeftModel.from_pretrained(base_model_2, MODEL_NAME_2)
+model_2.eval()
+print(f"✓ PEFT LoRA adapter loaded from {MODEL_NAME_2}")
+
+# Load tokenizer from base model
+tokenizer_2 = AutoTokenizer.from_pretrained(peft_config_2.base_model_name_or_path)
+print(f"✓ Tokenizer loaded")
+
+# Emotion labels (ensure these match your training labels)
+EMOTION_LABELS = ["joy", "sadness", "anger", "love", "surprise", "neutral"]
+
+# ==================== RULE-BASED KEYWORDS ====================
+# URGENCY KEYWORDS (supplementary to model's attention weights)
 # NOTE: These are simple heuristics, NOT what the model actually learned.
 # The model's attention weights (from extract_important_tokens) are the true explanation.
 # These keywords provide additional context but may not match what the model focuses on.
@@ -51,14 +80,41 @@ URGENCY_KEYWORDS = {
     ]
 }
 
-# Slack Event Models
+# EMOTION KEYWORDS (supplementary to model's attention weights)
+# NOTE: Same as urgency - these are heuristics, not what the PEFT model learned
+EMOTION_KEYWORDS = {
+    "joy": [
+        "happy", "great", "wonderful", "excellent", "love", "amazing", 
+        "fantastic", "perfect", "delighted", "thrilled", "excited", "glad"
+    ],
+    "sadness": [
+        "sad", "disappointed", "unhappy", "terrible", "awful", "bad", 
+        "depressed", "miserable", "upset", "hurt", "down", "blue"
+    ],
+    "anger": [
+        "angry", "furious", "mad", "frustrated", "annoyed", "outraged", 
+        "hate", "irritated", "rage", "pissed", "livid", "infuriated"
+    ],
+    "love": [
+        "love", "adore", "care", "cherish", "appreciate", "grateful", 
+        "thankful", "blessed", "treasure", "devoted", "fond"
+    ],
+    "surprise": [
+        "wow", "amazing", "unexpected", "surprised", "shocking", 
+        "incredible", "unbelievable", "astonishing", "stunning", "speechless"
+    ],
+    "neutral": [
+        "ok", "fine", "alright", "normal", "regular", "standard", 
+        "average", "typical", "ordinary"
+    ]
+}
 
+# ==================== PYDANTIC MODELS ====================
 
 class SlackChallenge(BaseModel):
     """Slack URL verification challenge"""
     challenge: str
     type: str = "url_verification"
-
 
 class SlackMessage(BaseModel):
     """Slack message event"""
@@ -67,13 +123,11 @@ class SlackMessage(BaseModel):
     channel: str
     ts: str
 
-
 class SlackEvent(BaseModel):
     """Slack event wrapper"""
     type: str
     event: Optional[Dict] = None
     challenge: Optional[str] = None
-
 
 class AnalysisRequest(BaseModel):
     """Request for combined analysis"""
@@ -82,7 +136,6 @@ class AnalysisRequest(BaseModel):
         None, description="Slack channel to post results")
     include_explanation: bool = Field(
         True, description="Include detailed explanations")
-
 
 class AnalysisResponse(BaseModel):
     """Combined analysis response"""
@@ -93,23 +146,19 @@ class AnalysisResponse(BaseModel):
     priority_flag: Dict
     report: Optional[str] = None
 
-
-# Request model
-
-
 class MessageRequest(BaseModel):
+    """Request model for prediction"""
     message: str = Field(..., min_length=1,
                          description="Text message to classify")
 
-# Response model
-
-
 class PredictionResponse(BaseModel):
+    """Response model for prediction"""
     predicted_class: str
     confidence: float
     probabilities: Dict[str, float]
     explanation: Optional[Dict] = None
 
+# ==================== HELPER FUNCTIONS ====================
 
 def extract_important_tokens(text: str, inputs: Dict, model, tokenizer, top_k: int = 10) -> List[Tuple[str, float]]:
     """
@@ -119,7 +168,7 @@ def extract_important_tokens(text: str, inputs: Dict, model, tokenizer, top_k: i
     Args:
         text: Input text
         inputs: Tokenized inputs
-        model: The model
+        model: The model (can be standard or PEFT)
         tokenizer: The tokenizer
         top_k: Number of top tokens to return
 
@@ -148,8 +197,8 @@ def extract_important_tokens(text: str, inputs: Dict, model, tokenizer, top_k: i
         token_importance = []
         for i, (token, score) in enumerate(zip(tokens, cls_attention)):
             # Skip special tokens and subword markers
-            if token not in ['[CLS]', '[SEP]', '[PAD]', '<s>', '</s>', '<pad>']:
-                # Clean up subword tokens
+            if token not in ['[CLS]', '[SEP]', '[PAD]', '<s>', '</s>', '<pad>', '<mask>']:
+                # Clean up subword tokens (works for both BERT and RoBERTa tokenizers)
                 clean_token = token.replace('##', '').replace('Ġ', '')
                 if clean_token.strip():
                     token_importance.append((clean_token, float(score)))
@@ -162,8 +211,7 @@ def extract_important_tokens(text: str, inputs: Dict, model, tokenizer, top_k: i
         print(f"Error extracting tokens: {e}")
         return []
 
-
-def find_keyword_hints(text: str, predicted_class: str) -> List[str]:
+def find_keyword_hints(text: str, keywords_dict: Dict, predicted_class: str = None) -> List[str]:
     """
     Find rule-based keyword hints in the text (SUPPLEMENTARY ONLY).
     NOTE: This is NOT what the model used - just simple pattern matching for additional context.
@@ -171,7 +219,8 @@ def find_keyword_hints(text: str, predicted_class: str) -> List[str]:
 
     Args:
         text: Input text
-        predicted_class: Predicted urgency level
+        keywords_dict: Dictionary of category -> keywords
+        predicted_class: Predicted class (optional, for filtering)
 
     Returns:
         List of found keyword hints (not model-based)
@@ -180,19 +229,18 @@ def find_keyword_hints(text: str, predicted_class: str) -> List[str]:
     found_indicators = []
 
     # Check all keyword categories
-    for category, keywords in URGENCY_KEYWORDS.items():
+    for category, keywords in keywords_dict.items():
         for keyword in keywords:
             if keyword in text_lower:
                 found_indicators.append(f"{keyword} ({category})")
 
     return found_indicators
 
-
-def generate_explanation(text: str, predicted_class: str, confidence: float,
-                         important_tokens: List[Tuple[str, float]],
-                         keyword_hints: List[str]) -> Dict:
+def generate_urgency_explanation(text: str, predicted_class: str, confidence: float,
+                                 important_tokens: List[Tuple[str, float]],
+                                 keyword_hints: List[str]) -> Dict:
     """
-    Generate a human-readable explanation for the prediction.
+    Generate a human-readable explanation for urgency prediction.
     Combines MODEL-BASED explainability (attention weights) with optional rule-based hints.
 
     Args:
@@ -260,6 +308,65 @@ def generate_explanation(text: str, predicted_class: str, confidence: float,
         "text_length": word_count
     }
 
+def generate_emotion_explanation(text: str, predicted_class: str, confidence: float,
+                                important_tokens: List[Tuple[str, float]],
+                                emotion_indicators: List[str]) -> Dict:
+    """
+    Generate a human-readable explanation for emotion prediction.
+    Combines MODEL-BASED explainability (PEFT LoRA attention) with optional rule-based hints.
+
+    Args:
+        text: Input text
+        predicted_class: Predicted emotion
+        confidence: Prediction confidence
+        important_tokens: Important tokens from PEFT MODEL'S attention weights (primary)
+        emotion_indicators: Rule-based keyword hints (supplementary only)
+
+    Returns:
+        Explanation dictionary with model-based and rule-based insights clearly separated
+    """
+    reasoning_parts = []
+
+    # Model confidence (PRIMARY)
+    if confidence > 0.8:
+        reasoning_parts.append(
+            f"High confidence ({confidence*100:.1f}%) in {predicted_class} classification.")
+    elif confidence > 0.6:
+        reasoning_parts.append(
+            f"Moderate confidence ({confidence*100:.1f}%) in {predicted_class} classification.")
+    else:
+        reasoning_parts.append(
+            f"Low confidence ({confidence*100:.1f}%). Text may be emotionally ambiguous.")
+
+    # Model's attention-based tokens (PRIMARY EXPLANATION from PEFT LoRA)
+    if important_tokens:
+        top_tokens = [token for token, _ in important_tokens[:5]]
+        reasoning_parts.append(
+            f"Model focused on: {', '.join(top_tokens)}.")
+
+    # Rule-based emotion keywords (SUPPLEMENTARY - may not match model's focus)
+    if emotion_indicators:
+        keywords = ", ".join([ind.split(" (")[0] for ind in emotion_indicators[:3]])
+        reasoning_parts.append(
+            f"Found emotion keywords: {keywords}.")
+
+    # Text characteristics
+    word_count = len(text.split())
+    if word_count < 10:
+        reasoning_parts.append(
+            "Short text may limit emotion detection accuracy.")
+
+    return {
+        # PRIMARY: What the PEFT model actually used
+        "model_attention_tokens": important_tokens,
+        # SUPPLEMENTARY: Simple pattern matching
+        "emotion_indicators": emotion_indicators,
+        "reasoning": " ".join(reasoning_parts),
+        "text_length": word_count,
+        "model_type": "PEFT LoRA"
+    }
+
+# ==================== API ENDPOINTS ====================
 
 @app.post("/urgency/predict", response_model=PredictionResponse)
 async def predict_urgency(request: MessageRequest):
@@ -311,11 +418,11 @@ async def predict_urgency(request: MessageRequest):
 
         # SUPPLEMENTARY: Simple rule-based keyword matching (not model-based)
         keyword_hints = find_keyword_hints(
-            request.message, predicted_class
+            request.message, URGENCY_KEYWORDS, predicted_class
         )
 
         # Combine model-based and rule-based explanations
-        explanation = generate_explanation(
+        explanation = generate_urgency_explanation(
             request.message,
             predicted_class,
             confidence,
@@ -334,18 +441,13 @@ async def predict_urgency(request: MessageRequest):
         raise HTTPException(
             status_code=500, detail=f"Prediction error: {str(e)}")
 
-
 @app.post("/emotion/predict", response_model=PredictionResponse)
 async def predict_emotion(request: MessageRequest):
     """
-    Predict emotion for a given message with explainability.
-
-    NOTE: This is a placeholder endpoint. Actual emotion classification implementation goes here.
-    TODO: 
-    - Load emotion classification model
-    - Implement emotion-specific keywords
-    - Add emotion-specific explainability
-    - Return proper emotion predictions (e.g., happy, sad, angry, frustrated, satisfied, neutral)
+    Predict emotion for a given message with explainability using PEFT LoRA model.
+    
+    This endpoint uses a fine-tuned RoBERTa model with LoRA adapters for emotion classification.
+    The model was trained to detect: joy, sadness, anger, love, surprise, and neutral emotions.
 
     Args:
         request: MessageRequest containing the message text
@@ -353,27 +455,63 @@ async def predict_emotion(request: MessageRequest):
     Returns:
         PredictionResponse with predicted emotion, confidence, probabilities, and explanation
     """
-    # TODO: Implement emotion classification here
-    # For now, return a placeholder response
-    return PredictionResponse(
-        predicted_class="neutral",
-        confidence=0.5,
-        probabilities={
-            "happy": 0.1,
-            "sad": 0.1,
-            "angry": 0.1,
-            "neutral": 0.5,
-            "frustrated": 0.1,
-            "satisfied": 0.1
-        },
-        explanation={
-            "important_tokens": [],
-            "emotion_indicators": [],
-            "reasoning": "Emotion classification not yet implemented. This is a placeholder response.",
-            "text_length": len(request.message.split())
-        }
-    )
+    try:
+        # Tokenize input using RoBERTa tokenizer
+        inputs = tokenizer_2(
+            request.message,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+            padding=True
+        )
 
+        # Make prediction using PEFT LoRA model
+        with torch.no_grad():
+            outputs = model_2(**inputs)
+            logits = outputs.logits
+            probabilities = torch.softmax(logits, dim=-1)[0]
+
+        # Get predicted class
+        predicted_idx = torch.argmax(probabilities).item()
+        confidence = probabilities[predicted_idx].item()
+        predicted_emotion = EMOTION_LABELS[predicted_idx]
+
+        # Create probability dictionary
+        prob_dict = {
+            label: prob.item()
+            for label, prob in zip(EMOTION_LABELS, probabilities)
+        }
+
+        # Generate explainability
+        # PRIMARY: Extract tokens based on PEFT model's attention weights
+        model_attention_tokens = extract_important_tokens(
+            request.message, inputs, model_2, tokenizer_2, top_k=10
+        )
+
+        # SUPPLEMENTARY: Simple rule-based emotion keyword matching (not model-based)
+        emotion_indicators = find_keyword_hints(
+            request.message, EMOTION_KEYWORDS, predicted_emotion
+        )
+
+        # Combine PEFT model-based and rule-based explanations
+        explanation = generate_emotion_explanation(
+            request.message,
+            predicted_emotion,
+            confidence,
+            model_attention_tokens,
+            emotion_indicators
+        )
+
+        return PredictionResponse(
+            predicted_class=predicted_emotion,
+            confidence=confidence,
+            probabilities=prob_dict,
+            explanation=explanation
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Emotion prediction error: {str(e)}")
 
 @app.post("/slack/events")
 async def slack_events(
@@ -437,7 +575,6 @@ async def slack_events(
 
     return {"status": "ok"}
 
-
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze_ticket(request: AnalysisRequest):
     """
@@ -476,7 +613,6 @@ async def analyze_ticket(request: AnalysisRequest):
             detail=f"Analysis error: {str(e)}"
         )
 
-
 def verify_slack_signature(
     body: bytes,
     signature: str,
@@ -511,11 +647,16 @@ def verify_slack_signature(
     # Compare signatures
     return hmac.compare_digest(expected_signature, signature)
 
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "model": MODEL_NAME_1, "slack_enabled": slack_analyzer.slack_client is not None}
+    return {
+        "status": "healthy",
+        "urgency_model": MODEL_NAME_1,
+        "emotion_model": MODEL_NAME_2,
+        "emotion_model_type": "PEFT LoRA (RoBERTa-base + adapter)",
+        "slack_enabled": slack_analyzer.slack_client is not None
+    }
 
 if __name__ == "__main__":
     import uvicorn
